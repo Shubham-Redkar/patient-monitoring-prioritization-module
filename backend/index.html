@@ -1,0 +1,111 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Sepsis Monitoring Test</title>
+  </head>
+
+  <body>
+    <h2>Backend Test Interface</h2>
+
+    <label>Patient ID:</label>
+    <input type="number" id="patientId" value="1" />
+
+    <br /><br />
+
+    <label>Hour:</label>
+    <input
+      type="range"
+      id="hourSlider"
+      min="0"
+      max="72"
+      value="0"
+      oninput="updateHour()"
+    />
+
+    <span id="hourValue">0</span>
+
+    <br /><br />
+
+    <button onclick="fetchPrediction()">Get Prediction</button>
+
+    <h3>Prediction Response</h3>
+
+    <pre id="result"></pre>
+
+    <hr />
+
+    <h3>Upload CSV Dataset</h3>
+
+    <input type="file" id="csvFile" />
+    <button onclick="uploadCSV()">Upload CSV</button>
+
+    <pre id="uploadResult"></pre>
+
+    <script>
+      function updateHour() {
+        const hour = document.getElementById("hourSlider").value;
+        document.getElementById("hourValue").innerText = hour;
+      }
+
+      async function fetchPrediction() {
+        const patientId = document.getElementById("patientId").value;
+        const hour = document.getElementById("hourSlider").value;
+
+        const url = `http://localhost:8000/api/v1/patients/${patientId}/predict?hour=${hour}`;
+
+        try {
+          const response = await fetch(url);
+
+          if (!response.ok) {
+            throw new Error("Backend returned error: " + response.status);
+          }
+
+          const data = await response.json();
+
+          document.getElementById("result").textContent = JSON.stringify(
+            data,
+            null,
+            2,
+          );
+        } catch (error) {
+          document.getElementById("result").textContent =
+            "Error: " + error.message;
+        }
+      }
+
+      async function uploadCSV() {
+        const fileInput = document.getElementById("csvFile");
+        const file = fileInput.files[0];
+
+        if (!file) {
+          alert("Please select a CSV file first.");
+          return;
+        }
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch(
+            "http://localhost:8000/api/v1/upload-csv",
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+
+          const data = await response.json();
+
+          document.getElementById("uploadResult").textContent = JSON.stringify(
+            data,
+            null,
+            2,
+          );
+        } catch (error) {
+          document.getElementById("uploadResult").textContent =
+            "Upload failed: " + error.message;
+        }
+      }
+    </script>
+  </body>
+</html>

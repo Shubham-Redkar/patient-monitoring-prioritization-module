@@ -2,9 +2,13 @@ from fastapi import FastAPI
 from contextlib import asynccontextmanager
 import joblib
 
-from routes.prediction_routes import router
+from routes.upload_routes import router as upload_router
+from routes.prediction_routes import router as prediction_router
 from services.lab_service import LabService
 from services.vital_service import VitalService
+
+from db.mongodb import init_indexes
+from db.patient_repo import PatientRepository
 
 
 @asynccontextmanager
@@ -23,6 +27,10 @@ async def lifespan(app: FastAPI):
         vital_package["iso_model"], vital_package["scaler"], vital_package["features"]
     )
 
+    app.state.patient_repo = PatientRepository()
+
+    await init_indexes()
+
     yield
 
 
@@ -31,7 +39,7 @@ app = FastAPI(title="Sepsis Monitoring API", version="1.0.0", lifespan=lifespan)
 
 @app.get("/")
 def root():
-    return "Patient Monitoring Module"
+    return {"message": "Patient Monitoring Module"}
 
 
 @app.get("/health")
@@ -39,4 +47,5 @@ def health():
     return {"status": "ok"}
 
 
-app.include_router(router)
+app.include_router(prediction_router)
+app.include_router(upload_router)

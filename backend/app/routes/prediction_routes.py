@@ -1,61 +1,84 @@
 from fastapi import APIRouter, Request, HTTPException
 import pandas as pd
 
-from schemas.predict_schema import PredictionInput
-from schemas.response_schema import PredictionResponse
-
+from utils.vital_features import compute_vital_features
+from utils.lab_features import compute_lab_features
 from services.priority_service import PriorityService
-
 
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
 
 priority_service = PriorityService()
 
 
-@router.post("/predict", response_model=PredictionResponse)
-def predict(request: Request, data: PredictionInput):
+@router.get("/patients/{patient_id}/predict")
+async def predict(patient_id: int, hour: int, request: Request):
 
     try:
-        lab_service = request.app.state.lab_service
+
+        repo = request.app.state.patient_repo
         vital_service = request.app.state.vital_service
+        lab_service = request.app.state.lab_service
 
-        # ----------------------
-        # Vital processing
-        # ----------------------
+        history = await repo.get_history(patient_id, 0, hour)
 
-        vital_df = pd.DataFrame([data.vital.model_dump()])
+        if not history:
+            raise HTTPException(status_code=404, detail="No patient history found")
+
+        vital_rows = []
+        lab_rows = []
+
+        for r in history:
+
+            base = {
+                "patient_id": r["patient_id"],
+                "hour_from_admission": r["hour_from_admission"],
+            }
+
+            vital_rows.append({**base, **r["vitals"]})
+
+            if r.get("labs"):
+                lab_rows.append({**base, **r["labs"]})
+
+        vital_df = pd.DataFrame(vital_rows)
+        lab_df = pd.DataFrame(lab_rows) if lab_rows else None
+
+        vital_df = compute_vital_features(vital_df)
 
         vital_df = vital_service.detect_instability(vital_df)
 
         anomaly_flag = int(vital_df["vital_anomaly_flag"].iloc[-1])
 
-        sustained_instability = anomaly_flag
+        vital_df["anomaly_count_4h"] = (
+            vital_df.groupby("patient_id")["vital_anomaly_flag"]
+            .rolling(4, min_periods=1)
+            .sum()
+            .reset_index(level=0, drop=True)
+        )
 
-        # ----------------------
-        # Lab processing (optional)
-        # ----------------------
+        sustained_instability = int(vital_df["anomaly_count_4h"].iloc[-1] >= 2)
 
-        lab_label = None
         lab_prob = None
+        lab_label = None
 
-        if data.lab is not None:
+        if lab_df is not None and len(lab_df) > 0:
 
-            lab_df = pd.DataFrame([data.lab.model_dump()])
+            lab_df = compute_lab_features(lab_df)
 
-            lab_result = lab_service.predict_lab_risk(lab_df)
+            latest_lab = lab_df.iloc[[-1]]
+
+            lab_result = lab_service.predict_lab_risk(latest_lab)
 
             lab_prob = lab_result["lab_risk_probability"]
             lab_label = lab_result["lab_risk_label"]
 
-        # ----------------------
-        # Priority
-        # ----------------------
-
-        priority = priority_service.compute_priority(lab_label, sustained_instability)
+        priority = priority_service.compute_priority(
+            lab_label,
+            sustained_instability,
+        )
 
         return {
-            "patient_id": data.vital.patient_id,
-            "hour_from_admission": data.vital.hour_from_admission,
+            "patient_id": patient_id,
+            "hour_from_admission": hour,
             "lab_risk_probability": lab_prob,
             "lab_risk_label": lab_label,
             "vital_anomaly_flag": anomaly_flag,
@@ -64,4 +87,4 @@ def predict(request: Request, data: PredictionInput):
         }
 
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
