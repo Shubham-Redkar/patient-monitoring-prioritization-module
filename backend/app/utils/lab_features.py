@@ -1,0 +1,29 @@
+import pandas as pd
+
+
+def compute_lab_features(df: pd.DataFrame, window_size: int = 6):
+
+    lab_cols = [
+        "wbc_count",
+        "lactate",
+        "creatinine",
+        "crp_level",
+        "hemoglobin"
+    ]
+
+    df = df.sort_values(["patient_id", "hour_from_admission"])
+
+    for col in lab_cols:
+
+        df[f"{col}_roll_mean_6h"] = (
+            df.groupby("patient_id")[col]
+            .rolling(window_size, min_periods=1)
+            .mean()
+            .reset_index(level=0, drop=True)
+        )
+
+        df[f"{col}_trend_6h"] = (
+            df[col] - df[f"{col}_roll_mean_6h"]
+        )
+
+    return df
