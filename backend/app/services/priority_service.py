@@ -8,7 +8,7 @@ class PriorityService:
         if lab_label == 1 and sustained_instability == 0:
             return "High"
 
-        if lab_label == None and sustained_instability == 1:
+        if lab_label is None and sustained_instability == 1:
             return "High"
 
         if lab_label == 0 and sustained_instability == 1:

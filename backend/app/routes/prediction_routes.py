@@ -7,7 +7,7 @@ from utils.alert_logic import determine_alert
 from utils.explanability import extract_signals
 
 from services.priority_service import PriorityService
-from services.gemini_services import generate_explanation
+from services.grok_services import generate_explanation
 
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
 
@@ -80,9 +80,20 @@ async def predict(patient_id: int, hour: int, request: Request):
             sustained_instability,
         )
 
-        alert = determine_alert(priority)
+        # Fetch previous priority for alert deduplication
+        previous = await repo.get_latest_reading(patient_id)
+        previous_priority = previous.get("priority_level") if previous else None
 
-        signals = extract_signals(vital_df, lab_df, priority)
+        alert = determine_alert(priority, previous_priority)
+
+        # Pass services so SHAP can use the actual models
+        signals = extract_signals(
+            vital_df,
+            lab_df,
+            priority,
+            lab_service=lab_service,
+            vital_service=vital_service,
+        )
 
         explanation = None
 

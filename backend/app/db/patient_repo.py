@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 from db.mongodb import get_db
 from pymongo import ReplaceOne
 
@@ -87,3 +88,18 @@ class PatientRepository:
     async def list_patients(self) -> list[int]:
 
         return await self.col.distinct("patient_id")
+
+    async def acknowledge_alert(self, patient_id, doctor_name):
+
+        result = await self.col.update_one(
+            {"patient_id": patient_id},
+            {
+                "$set": {
+                    "alert.acknowledged": True,
+                    "alert.acknowledged_by": doctor_name,
+                    "alert.acknowledged_at": datetime.utcnow(),
+                }
+            },
+        )
+
+        return result.modified_count
