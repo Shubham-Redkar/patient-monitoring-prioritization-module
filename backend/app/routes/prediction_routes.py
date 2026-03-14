@@ -5,7 +5,9 @@ from utils.vital_features import compute_vital_features
 from utils.lab_features import compute_lab_features
 from utils.alert_logic import determine_alert
 from utils.explanability import extract_signals
+
 from services.priority_service import PriorityService
+from services.gemini_services import generate_explanation
 
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
 
@@ -82,6 +84,11 @@ async def predict(patient_id: int, hour: int, request: Request):
 
         signals = extract_signals(vital_df, lab_df, priority)
 
+        explanation = None
+
+        if alert["alert"]:
+            explanation = generate_explanation(signals)
+
         return {
             "patient_id": patient_id,
             "hour_from_admission": hour,
@@ -90,6 +97,9 @@ async def predict(patient_id: int, hour: int, request: Request):
             "vital_anomaly_flag": anomaly_flag,
             "sustained_instability": sustained_instability,
             "priority_level": priority,
+            "alert": alert,
+            "signals": signals,
+            "explanation": explanation,
         }
 
     except Exception as e:
