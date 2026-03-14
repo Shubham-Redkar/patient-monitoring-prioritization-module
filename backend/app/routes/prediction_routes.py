@@ -3,6 +3,8 @@ import pandas as pd
 
 from utils.vital_features import compute_vital_features
 from utils.lab_features import compute_lab_features
+from utils.alert_logic import determine_alert
+from utils.explanability import extract_signals
 from services.priority_service import PriorityService
 
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
@@ -75,6 +77,10 @@ async def predict(patient_id: int, hour: int, request: Request):
             lab_label,
             sustained_instability,
         )
+
+        alert = determine_alert(priority)
+
+        signals = extract_signals(vital_df, lab_df, priority)
 
         return {
             "patient_id": patient_id,

@@ -19,14 +19,15 @@
       min="0"
       max="72"
       value="0"
-      oninput="updateHour()"
+      oninput="
+        updateHour();
+        fetchPrediction();
+      "
     />
 
     <span id="hourValue">0</span>
 
     <br /><br />
-
-    <button onclick="fetchPrediction()">Get Prediction</button>
 
     <h3>Prediction Response</h3>
 
