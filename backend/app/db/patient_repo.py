@@ -1,5 +1,5 @@
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from db.mongodb import get_db
 from pymongo import ReplaceOne
 
@@ -97,7 +97,7 @@ class PatientRepository:
                 "$set": {
                     "alert.acknowledged": True,
                     "alert.acknowledged_by": doctor_name,
-                    "alert.acknowledged_at": datetime.utcnow(),
+                    "alert.acknowledged_at": datetime.now(timezone.utc),
                 }
             },
         )

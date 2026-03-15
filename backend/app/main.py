@@ -6,6 +6,7 @@ import joblib
 from routes.upload_routes import router as upload_router
 from routes.prediction_routes import router as prediction_router
 from routes.alert_routes import router as alert_router
+from routes.patient_routes import router as patient_router
 
 from services.lab_service import LabService
 from services.vital_service import VitalService
@@ -61,3 +62,4 @@ def health():
 app.include_router(prediction_router)
 app.include_router(upload_router)
 app.include_router(alert_router)
+app.include_router(patient_router)
