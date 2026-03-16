@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, HTTPException
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/api/v1", tags=["alerts"])
 
@@ -18,5 +18,5 @@ async def acknowledge_alert(patient_id: int, doctor: str, request: Request):
         "patient_id": patient_id,
         "status": "acknowledged",
         "doctor": doctor,
-        "timestamp": datetime.utcnow(),
+        "timestamp": datetime.now(timezone.utc),
     }

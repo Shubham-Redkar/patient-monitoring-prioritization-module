@@ -245,7 +245,23 @@ export default function Dashboard({ user, onLogout }) {
   const [error, setError] = useState(null);
   const [ackMsg, setAckMsg] = useState(null);
   const [acknowledged, setAcknowledged] = useState(false);
+  const [explanation, setExplanation] = useState(null);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const prevPriorityRef = useRef(null);
   const debounceRef = useRef(null);
+  const pollRef = useRef(null);
+  const hourRef = useRef(0);
+
+  // Keep hourRef in sync with hour state so polling always uses latest hour
+  useEffect(() => {
+    hourRef.current = hour;
+  }, [hour]);
+
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
 
   useEffect(() => {
     fetch(`${BASE}/patients`)
@@ -276,14 +292,20 @@ export default function Dashboard({ user, onLogout }) {
   const fetchPrediction = useCallback(async (pid, h) => {
     setLoading(true);
     setError(null);
-    setAckMsg(null);
     try {
       const res = await fetch(`${BASE}/patients/${pid}/predict?hour=${h}`);
       if (!res.ok) {
         const e = await res.json();
         throw new Error(e.detail || res.status);
       }
-      setPrediction(await res.json());
+      const data = await res.json();
+      setPrediction(data);
+      setLastUpdated(new Date());
+      // Only update explanation if priority changed or it's a new alert
+      if (data.priority_level !== prevPriorityRef.current) {
+        prevPriorityRef.current = data.priority_level;
+        setExplanation(data.explanation);
+      }
     } catch (e) {
       setError(e.message);
       setPrediction(null);
@@ -297,6 +319,15 @@ export default function Dashboard({ user, onLogout }) {
     Promise.all([fetchHistory(patientId), fetchPrediction(patientId, hour)]);
   }, [patientId]);
 
+  // Real-time polling every 10 seconds
+  useEffect(() => {
+    if (!patientId) return;
+    pollRef.current = setInterval(() => {
+      fetchPrediction(patientId, hourRef.current);
+    }, 10000);
+    return () => clearInterval(pollRef.current);
+  }, [patientId]);
+
   const onPatientChange = (e) => {
     const pid = +e.target.value;
     setPatientId(pid);
@@ -305,13 +336,15 @@ export default function Dashboard({ user, onLogout }) {
     setHistory(null);
     setAcknowledged(false);
     setAckMsg(null);
+    setExplanation(null);
+    prevPriorityRef.current = null;
   };
 
   const onSliderChange = (e) => {
     const h = +e.target.value;
     setHour(h);
     clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchPrediction(patientId, h), 150);
+    debounceRef.current = setTimeout(() => fetchPrediction(patientId, h), 0);
   };
 
   const acknowledge = async () => {
@@ -371,7 +404,40 @@ export default function Dashboard({ user, onLogout }) {
           <div style={s.title}>Sepsis Monitor</div>
           <div style={s.subtitle}>ICU patient risk dashboard</div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          {/* AI monitoring indicator */}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: "50%",
+                background: "#1D9E75",
+                display: "inline-block",
+                animation: "pulse 2s ease-in-out infinite",
+              }}
+            />
+            <span
+              style={{ fontSize: 11, color: "#888", letterSpacing: "0.04em" }}
+            >
+              AI monitoring active
+            </span>
+          </div>
+          {/* Live clock */}
+          <span
+            style={{
+              fontSize: 13,
+              color: "#888",
+              fontFamily: "monospace",
+              letterSpacing: "0.04em",
+            }}
+          >
+            {now.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}
+          </span>
           {prediction && (
             <span style={s.badge(prediction.priority_level)}>
               {prediction.priority_level}
@@ -394,6 +460,7 @@ export default function Dashboard({ user, onLogout }) {
           </button>
         </div>
       </div>
+      <style>{`@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.85)} }`}</style>
 
       {/* Controls */}
       <div style={{ ...s.card, marginBottom: "1rem" }}>
@@ -491,11 +558,32 @@ export default function Dashboard({ user, onLogout }) {
       )}
 
       {/* Explanation */}
-      {prediction?.explanation && (
+      {explanation && (
         <div style={{ ...s.card, marginBottom: "1rem" }}>
           <span style={s.sectionTitle}>Clinical explanation</span>
           <div style={{ fontSize: 14, lineHeight: 1.7, color: "#333" }}>
-            {prediction.explanation}
+            {explanation}
+          </div>
+          <div
+            style={{
+              marginTop: 10,
+              fontSize: 11,
+              color: "#bbb",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            <span
+              style={{
+                width: 6,
+                height: 6,
+                borderRadius: "50%",
+                background: "#1D9E75",
+                display: "inline-block",
+              }}
+            />
+            Generated by AI - for clinical reference only
           </div>
         </div>
       )}

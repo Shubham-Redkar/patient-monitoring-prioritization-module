@@ -13,6 +13,7 @@ from services.vital_service import VitalService
 
 from db.mongodb import init_indexes
 from db.patient_repo import PatientRepository
+from utils.explanability import init_explainers
 
 
 @asynccontextmanager
@@ -32,6 +33,8 @@ async def lifespan(app: FastAPI):
     )
 
     app.state.patient_repo = PatientRepository()
+
+    init_explainers(app.state.lab_service, app.state.vital_service)
 
     await init_indexes()
 
