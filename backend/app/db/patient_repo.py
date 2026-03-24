@@ -10,6 +10,10 @@ class PatientRepository:
     def col(self):
         return get_db().patient_readings
 
+    @property
+    def meta_col(self):
+        return get_db().patient_meta
+
     # Insert or update a reading
     async def upsert_reading(
         self,
@@ -103,3 +107,20 @@ class PatientRepository:
         )
 
         return result.modified_count
+
+    async def override_patient_priority(self, patient_id: int, priority: str, reason: str, doctor_name: str):
+        await self.meta_col.update_one(
+            {"patient_id": patient_id},
+            {
+                "$set": {
+                    "manual_priority": priority,
+                    "manual_priority_reason": reason,
+                    "manual_priority_by": doctor_name,
+                    "manual_priority_at": datetime.now(timezone.utc)
+                }
+            },
+            upsert=True
+        )
+
+    async def get_patient_meta(self, patient_id: int):
+        return await self.meta_col.find_one({"patient_id": patient_id})

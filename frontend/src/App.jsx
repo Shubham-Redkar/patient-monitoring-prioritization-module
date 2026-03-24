@@ -1,21 +1,89 @@
-import { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+
 import Login from "./components/Login";
-import Dashboard from "./components/Dashboard";
-import AdminPanel from "./components/AdminPanel";
+import Dashboard from "./pages/Dashboard";
+import PatientDetails from "./components/PatientDetails";
+import DataManagement from "./pages/DataManagement";
+import { AuthProvider, useAuth } from "./context/AuthContext";
 
-export default function App() {
-  const [user, setUser] = useState(null);
+const Loader = () => (
+  <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">
+    Loading...
+  </div>
+);
 
-  const handleLogin = (u) => setUser(u);
-  const handleLogout = () => setUser(null);
+const ProtectedRoute = ({ children, allowedRoles }) => {
+  const { user, loading } = useAuth();
 
-  if (!user) return <Login onLogin={handleLogin} />;
+  if (loading) return <Loader />;
+  if (!user) return <Navigate to="/login" />;
 
-  if (user.role === "admin")
-    return <AdminPanel user={user} onLogout={handleLogout} />;
+  if (allowedRoles && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" />;
+  }
 
-  if (user.role === "doctor")
-    return <Dashboard user={user} onLogout={handleLogout} />;
+  return children;
+};
 
-  return null;
-}
+const AppRoutes = () => {
+  const { user } = useAuth();
+
+  return (
+    <Routes>
+      {/* Login */}
+      <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+
+      {/* Dashboard */}
+      <Route
+        path="/"
+        element={
+          <ProtectedRoute>
+            {user?.role === "nurse" ? <Navigate to="/data" /> : <Dashboard />}
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Patient Details */}
+      <Route
+        path="/patient/:patientId"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "doctor"]}>
+            <PatientDetails />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Data Management */}
+      <Route
+        path="/data"
+        element={
+          <ProtectedRoute allowedRoles={["admin", "nurse"]}>
+            <DataManagement />
+          </ProtectedRoute>
+        }
+      />
+
+      {/* Fallback */}
+      <Route path="*" element={<Navigate to="/" />} />
+    </Routes>
+  );
+};
+
+const App = () => {
+  return (
+    <AuthProvider>
+      {" "}
+      <Router>
+        {" "}
+        <AppRoutes />{" "}
+      </Router>{" "}
+    </AuthProvider>
+  );
+};
+
+export default App;

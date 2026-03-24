@@ -1,140 +1,31 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useAuth } from "../context/AuthContext";
 
 const BASE = "http://localhost:8000/api/v1";
 
-const s = {
-  root: {
-    fontFamily: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",
-    background: "#fafaf9",
-    minHeight: "100vh",
-    padding: "2rem",
-    color: "#1a1a1a",
-  },
-  topbar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: "2rem",
-  },
-  title: { fontSize: 18, fontWeight: 500, letterSpacing: "-0.02em" },
-  subtitle: { fontSize: 13, color: "black", marginTop: 2 },
-  card: {
-    background: "#fff",
-    border: "0.5px solid #e5e5e4",
-    borderRadius: 10,
-    padding: "1.25rem",
-  },
-  label: {
-    fontSize: 11,
-    color: "black",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: 6,
-    display: "block",
-  },
-  grid2: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: 500,
-    color: "black",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    marginBottom: "1rem",
-    display: "block",
-  },
-  btn: {
-    fontSize: 13,
-    padding: "7px 16px",
-    borderRadius: 6,
-    cursor: "pointer",
-    border: "0.5px solid #d4d4d4",
-    background: "black",
-    color: "#fff",
-  },
-  logoutBtn: {
-    fontSize: 12,
-    padding: "5px 12px",
-    borderRadius: 6,
-    cursor: "pointer",
-    border: "0.5px solid #d4d4d4",
-    background: "#fff",
-    color: "black",
-  },
-  uploadBox: {
-    border: "0.5px dashed #d4d4d4",
-    borderRadius: 8,
-    padding: "2rem",
-    textAlign: "center",
-    cursor: "pointer",
-    marginBottom: "1rem",
-    transition: "border-color 0.2s",
-  },
-  fileName: {
-    fontSize: 13,
-    color: "black",
-    marginTop: 8,
-    fontFamily: "monospace",
-  },
-  successBox: {
-    background: "#EAF3DE",
-    border: "0.5px solid #97C459",
-    borderRadius: 6,
-    padding: "10px 14px",
-    fontSize: 13,
-    color: "#3B6D11",
-    marginTop: "1rem",
-  },
-  errorBox: {
-    background: "#FCEBEB",
-    border: "0.5px solid #F09595",
-    borderRadius: 6,
-    padding: "10px 14px",
-    fontSize: 13,
-    color: "#A32D2D",
-    marginTop: "1rem",
-  },
-  patientGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))",
-    gap: 8,
-  },
-  patientCard: {
-    background: "#fafaf9",
-    border: "0.5px solid #e5e5e4",
-    borderRadius: 8,
-    padding: "10px 12px",
-    textAlign: "center",
-  },
-  patientId: { fontSize: 15, fontWeight: 500, fontFamily: "monospace" },
-  patientLabel: { fontSize: 11, color: "black", marginTop: 2 },
-  empty: { fontSize: 13, color: "black", fontStyle: "italic" },
-  badge: {
-    display: "inline-block",
-    fontSize: 11,
-    padding: "3px 10px",
-    borderRadius: 4,
-    background: "#E6F1FB",
-    color: "#185FA5",
-    fontWeight: 500,
-  },
-};
+export default function AdminPanel() {
+  const { user, logout, token } = useAuth();
 
-export default function AdminPanel({ user, onLogout }) {
   const [patients, setPatients] = useState([]);
-  const [pLoading, setPLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
+
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadResult, setUploadResult] = useState(null);
-  const [uploadError, setUploadError] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState(null);
 
-  const loadPatients = () => {
-    setPLoading(true);
-    fetch(`${BASE}/patients`)
-      .then((r) => r.json())
-      .then((d) => setPatients(d.patient_ids || []))
-      .catch(() => setPatients([]))
-      .finally(() => setPLoading(false));
+  const fileRef = useRef();
+
+  const loadPatients = async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${BASE}/patients`);
+      const data = await res.json();
+      setPatients(data.patient_ids || []);
+    } catch {
+      setPatients([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -143,200 +34,151 @@ export default function AdminPanel({ user, onLogout }) {
 
   const handleFile = (f) => {
     if (!f || !f.name.endsWith(".csv")) {
-      setUploadError("Please select a valid CSV file");
+      setUploadMsg({ type: "error", text: "Only CSV files allowed" });
       return;
     }
-    setFile(f);
-    setUploadError(null);
-    setUploadResult(null);
-  };
 
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleFile(e.dataTransfer.files[0]);
+    if (f.size > 5 * 1024 * 1024) {
+      setUploadMsg({ type: "error", text: "File too large (max 5MB)" });
+      return;
+    }
+
+    setFile(f);
+    setUploadMsg(null);
   };
 
   const uploadCSV = async () => {
-    if (!file) {
-      setUploadError("No file selected");
-      return;
-    }
+    if (!file) return;
+
     setUploading(true);
-    setUploadResult(null);
-    setUploadError(null);
+    setUploadMsg(null);
+
     try {
       const formData = new FormData();
       formData.append("file", file);
+
       const res = await fetch(`${BASE}/upload-csv`, {
         method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
         body: formData,
       });
+
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || res.status);
-      setUploadResult(data);
+      if (!res.ok) throw new Error(data.detail || "Upload failed");
+
+      setUploadMsg({
+        type: "success",
+        text: `${data.rows_inserted} rows inserted`,
+      });
+
       setFile(null);
       loadPatients();
     } catch (e) {
-      setUploadError(e.message);
+      setUploadMsg({ type: "error", text: e.message });
     } finally {
       setUploading(false);
     }
   };
 
   return (
-    <div style={s.root}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
-
-      {/* Header */}
-      <div style={s.topbar}>
+    <div className="min-h-screen bg-gray-50 p-6">
+      {/* Topbar */}
+      <div className="flex justify-between items-center mb-6">
         <div>
-          <div style={s.title}>Admin Panel</div>
-          <div style={s.subtitle}>
-            Sepsis monitoring - system administration
-          </div>
+          <h1 className="text-lg font-semibold">Admin Panel</h1>
+          <p className="text-sm text-gray-600">System data management</p>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span style={s.badge}>Admin</span>
-          <span style={{ fontSize: 13, color: "black" }}>{user.username}</span>
-          <button style={s.logoutBtn} onClick={onLogout}>
-            Sign out
+
+        <div className="flex items-center gap-4 text-sm">
+          <span className="font-medium">{user?.username}</span>
+
+          <button onClick={logout} className="px-3 py-1.5 border rounded-md">
+            Logout
           </button>
         </div>
       </div>
 
-      <div style={s.grid2}>
+      <div className="grid md:grid-cols-2 gap-6">
         {/* Upload */}
-        <div style={s.card}>
-          <span style={s.sectionTitle}>Upload patient dataset</span>
+        <div className="bg-white p-5 rounded-xl border">
+          <h3 className="text-sm font-medium mb-4">
+            Upload Patient Data (CSV)
+          </h3>
 
           <div
-            style={{
-              ...s.uploadBox,
-              borderColor: dragOver ? "#378ADD" : "#d4d4d4",
-            }}
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragOver(true);
-            }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => document.getElementById("csvInput").click()}
+            onClick={() => fileRef.current.click()}
+            className="border-dashed border rounded-lg p-6 text-center cursor-pointer hover:bg-gray-50"
           >
-            <div style={{ fontSize: 13, color: "black" }}>
-              {file ? "" : "Drag & drop a CSV file here, or click to browse"}
-            </div>
-            {file && <div style={s.fileName}>{file.name}</div>}
+            {file ? (
+              <p className="text-sm font-mono">{file.name}</p>
+            ) : (
+              <p className="text-sm text-gray-500">Click to upload CSV</p>
+            )}
+
             <input
-              id="csvInput"
               type="file"
               accept=".csv"
-              style={{ display: "none" }}
+              ref={fileRef}
               onChange={(e) => handleFile(e.target.files[0])}
+              className="hidden"
             />
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <button
-              style={{ ...s.btn, opacity: !file || uploading ? 0.5 : 1 }}
-              onClick={uploadCSV}
-              disabled={!file || uploading}
-            >
-              {uploading ? "Uploading..." : "Upload CSV"}
-            </button>
-            {file && (
-              <span style={{ fontSize: 12, color: "black" }}>
-                ready to upload
-              </span>
-            )}
-          </div>
+          <button
+            onClick={uploadCSV}
+            disabled={!file || uploading}
+            className="mt-4 px-4 py-2 bg-black text-white text-sm rounded-md disabled:opacity-50"
+          >
+            {uploading ? "Uploading..." : "Upload"}
+          </button>
 
-          {uploadResult && (
-            <div style={s.successBox}>
-              Uploaded successfully — {uploadResult.rows_inserted} rows inserted
+          {uploadMsg && (
+            <div
+              className={`
+            mt-4 text-sm px-3 py-2 rounded
+            ${
+              uploadMsg.type === "error"
+                ? "bg-red-100 text-red-700"
+                : "bg-green-100 text-green-700"
+            }
+          `}
+            >
+              {uploadMsg.text}
             </div>
           )}
-          {uploadError && <div style={s.errorBox}>{uploadError}</div>}
-
-          <div
-            style={{
-              marginTop: "1.5rem",
-              borderTop: "0.5px solid #f0f0f0",
-              paddingTop: "1rem",
-            }}
-          >
-            <span style={s.label}>CSV format expected</span>
-            <div
-              style={{
-                fontFamily: "monospace",
-                fontSize: 11,
-                color: "black",
-                lineHeight: 1.8,
-              }}
-            >
-              patient_id, hour_from_admission,
-              <br />
-              heart_rate, respiratory_rate, spo2_pct,
-              <br />
-              temperature_c, systolic_bp, diastolic_bp,
-              <br />
-              wbc_count, lactate, creatinine, crp_level, hemoglobin
-            </div>
-          </div>
         </div>
 
-        {/* Patient list */}
-        <div style={s.card}>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              marginBottom: "1rem",
-            }}
-          >
-            <span style={s.sectionTitle}>Admitted patients</span>
+        {/* Patients */}
+        <div className="bg-white p-5 rounded-xl border">
+          <div className="flex justify-between mb-4">
+            <h3 className="text-sm font-medium">Patients</h3>
+
             <button
-              style={{ ...s.logoutBtn, fontSize: 11 }}
               onClick={loadPatients}
+              className="text-xs border px-2 py-1 rounded"
             >
               Refresh
             </button>
           </div>
 
-          {pLoading && <div style={s.empty}>Loading...</div>}
+          {loading && <p className="text-sm text-gray-500">Loading...</p>}
 
-          {!pLoading && patients.length === 0 && (
-            <div style={s.empty}>
-              No patients found. Upload a CSV to get started.
-            </div>
+          {!loading && patients.length === 0 && (
+            <p className="text-sm text-gray-500">No patients found</p>
           )}
 
-          {!pLoading && patients.length > 0 && (
-            <>
+          <div className="grid grid-cols-3 gap-2">
+            {patients.map((id) => (
               <div
-                style={{
-                  fontSize: 12,
-                  color: "black",
-                  marginBottom: "0.75rem",
-                }}
+                key={id}
+                className="border rounded-md p-2 text-center text-sm font-mono"
               >
-                {patients.length} patient{patients.length !== 1 ? "s" : ""}{" "}
-                admitted
+                {id}
               </div>
-              <div style={s.patientGrid}>
-                {patients.map((id) => (
-                  <div key={id} style={s.patientCard}>
-                    <div style={s.patientId}>{id}</div>
-                    <div style={s.patientLabel}>Patient ID</div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
+            ))}
+          </div>
         </div>
       </div>
     </div>

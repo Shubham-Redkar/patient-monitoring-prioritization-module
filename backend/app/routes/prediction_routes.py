@@ -80,6 +80,10 @@ async def predict(patient_id: int, hour: int, request: Request):
             sustained_instability,
         )
 
+        patient_meta = await repo.get_patient_meta(patient_id)
+        if patient_meta and patient_meta.get("manual_priority"):
+            priority = patient_meta["manual_priority"]
+
         # Fetch previous priority for alert deduplication
         previous = await repo.get_latest_reading(patient_id)
         previous_priority = previous.get("priority_level") if previous else None

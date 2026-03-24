@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
+from schemas.user_schema import UserResponse
+from utils.auth import require_role
 
 router = APIRouter(prefix="/api/v1", tags=["patients"])
 
@@ -8,6 +10,25 @@ async def list_patients(request: Request):
     repo = request.app.state.patient_repo
     ids = await repo.list_patients()
     return {"patient_ids": sorted(ids)}
+
+
+@router.post("/patients/{patient_id}/override_priority")
+async def override_priority(
+    patient_id: int,
+    request: Request,
+    data: dict,
+    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+):
+    priority = data.get("priority")
+    reason = data.get("reason")
+    if not priority or not reason:
+        raise HTTPException(status_code=400, detail="priority and reason are required")
+
+    repo = request.app.state.patient_repo
+    await repo.override_patient_priority(
+        patient_id, priority, reason, current_user.username
+    )
+    return {"message": "Priority overridden successfully"}
 
 
 @router.get("/patients/{patient_id}/history")

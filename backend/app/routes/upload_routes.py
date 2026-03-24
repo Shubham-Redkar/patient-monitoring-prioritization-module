@@ -1,12 +1,18 @@
-from fastapi import APIRouter, UploadFile, File, Request, HTTPException
+from fastapi import APIRouter, UploadFile, File, Request, HTTPException, Depends
 import pandas as pd
 import io
+from schemas.user_schema import UserResponse
+from utils.auth import require_role
 
 router = APIRouter(prefix="/api/v1", tags=["data"])
 
 
 @router.post("/upload-csv")
-async def upload_csv(file: UploadFile = File(...), request: Request = None):
+async def upload_csv(
+    file: UploadFile = File(...), 
+    request: Request = None,
+    current_user: UserResponse = Depends(require_role(["nurse", "admin"]))
+):
 
     try:
 
@@ -50,5 +56,22 @@ async def upload_csv(file: UploadFile = File(...), request: Request = None):
 
         return {"message": "CSV uploaded successfully", "rows_inserted": len(readings)}
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/patients/{patient_id}")
+async def delete_patient_data(
+    patient_id: int, 
+    request: Request = None,
+    current_user: UserResponse = Depends(require_role(["nurse", "admin"]))
+):
+    try:
+        repo = request.app.state.patient_repo
+        result = await repo.col.delete_many({"patient_id": patient_id})
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Patient not found or already deleted")
+        return {"message": "Patient data deleted successfully", "deleted_count": result.deleted_count}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

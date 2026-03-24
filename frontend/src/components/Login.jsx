@@ -1,163 +1,94 @@
 import { useState } from "react";
+import { useAuth } from "../context/AuthContext";
+import { useNavigate } from "react-router-dom";
 
-const USERS = [
-  { username: "doctor", password: "doctor123", role: "doctor" },
-  { username: "admin", password: "admin123", role: "admin" },
-];
-
-const s = {
-  root: {
-    minHeight: "100vh",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: "#fafaf9",
-    fontFamily: "'IBM Plex Sans', 'Helvetica Neue', sans-serif",
-  },
-  card: {
-    background: "#fff",
-    border: "0.5px solid #e5e5e4",
-    borderRadius: 12,
-    padding: "2.5rem 2rem",
-    width: 340,
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: 500,
-    letterSpacing: "-0.02em",
-    marginBottom: 4,
-  },
-  subtitle: { fontSize: 13, color: "#999", marginBottom: "2rem" },
-  label: {
-    fontSize: 11,
-    color: "#999",
-    textTransform: "uppercase",
-    letterSpacing: "0.08em",
-    display: "block",
-    marginBottom: 4,
-  },
-  input: {
-    width: "100%",
-    border: "0.5px solid #d4d4d4",
-    borderRadius: 6,
-    padding: "8px 12px",
-    fontSize: 13,
-    background: "#fff",
-    color: "#1a1a1a",
-    boxSizing: "border-box",
-    marginBottom: "1.25rem",
-  },
-  btn: {
-    width: "100%",
-    padding: "9px 0",
-    fontSize: 13,
-    fontWeight: 500,
-    background: "#1a1a1a",
-    color: "#fff",
-    border: "none",
-    borderRadius: 6,
-    cursor: "pointer",
-    letterSpacing: "0.02em",
-  },
-  error: {
-    fontSize: 12,
-    color: "#A32D2D",
-    marginBottom: "1rem",
-    background: "#FCEBEB",
-    padding: "8px 12px",
-    borderRadius: 6,
-    border: "0.5px solid #F09595",
-  },
-  hint: {
-    marginTop: "1.5rem",
-    borderTop: "0.5px solid #f0f0f0",
-    paddingTop: "1rem",
-  },
-  hintRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    fontSize: 12,
-    color: "#bbb",
-    marginBottom: 4,
-    fontFamily: "monospace",
-  },
-};
-
-const Login = ({ onLogin }) => {
+const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(false);
 
-  const handleLogin = (e) => {
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const user = USERS.find(
-      (u) => u.username === username.trim() && u.password === password,
-    );
-    if (!user) {
-      setError("Invalid username or password");
-      return;
+    setError(null);
+    setLoading(true);
+
+    try {
+      await login(username.trim(), password);
+      navigate("/");
+    } catch (err) {
+      setError(err.message || "Login failed");
+    } finally {
+      setLoading(false);
     }
-    onLogin(user);
   };
 
   return (
-    <div style={s.root}>
-      <link
-        href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap"
-        rel="stylesheet"
-      />
-      <div style={s.card}>
-        <div style={s.title}>Sepsis Monitor</div>
-        <div style={s.subtitle}>Sign in to continue</div>
-
-        {error && <div style={s.error}>{error}</div>}
-
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      {" "}
+      <div className="bg-white border rounded-xl p-8 w-full max-w-sm shadow-sm">
+        {" "}
+        <h2 className="text-lg font-semibold mb-1">Sepsis Monitor</h2>{" "}
+        <p className="text-sm text-gray-500 mb-6">Sign in to continue</p>
+        {error && (
+          <div className="text-sm text-red-700 bg-red-100 border border-red-300 rounded-md px-3 py-2 mb-4">
+            {error}
+          </div>
+        )}
         <form onSubmit={handleLogin}>
-          <span style={s.label}>Username</span>
+          <label className="text-xs text-gray-500 uppercase block mb-1">
+            Username
+          </label>
           <input
-            style={s.input}
-            autoFocus
+            className="w-full border rounded-md px-3 py-2 text-sm mb-4"
             value={username}
-            placeholder="Enter username"
             onChange={(e) => {
               setUsername(e.target.value);
               setError(null);
             }}
+            placeholder="Enter username"
+            autoFocus
           />
-          <span style={s.label}>Password</span>
+
+          <label className="text-xs text-gray-500 uppercase block mb-1">
+            Password
+          </label>
           <input
-            style={s.input}
             type="password"
+            className="w-full border rounded-md px-3 py-2 text-sm mb-6"
             value={password}
-            placeholder="Enter password"
             onChange={(e) => {
               setPassword(e.target.value);
               setError(null);
             }}
+            placeholder="Enter password"
           />
-          <button style={s.btn} type="submit">
-            Sign in
+
+          <button
+            type="submit"
+            disabled={loading || !username || !password}
+            className="w-full bg-black text-white py-2 rounded-md text-sm disabled:opacity-50"
+          >
+            {loading ? "Signing in..." : "Sign in"}
           </button>
         </form>
-
-        <div style={s.hint}>
-          <div
-            style={{
-              ...s.hintRow,
-              color: "#ccc",
-              marginBottom: 8,
-              fontSize: 11,
-            }}
-          >
-            Demo credentials
-          </div>
-          <div style={s.hintRow}>
+        {/* Demo creds */}
+        <div className="mt-6 border-t pt-4 text-xs text-gray-500 space-y-1 font-mono">
+          <p className="text-gray-400 mb-2">Demo credentials</p>
+          <div className="flex justify-between">
             <span>doctor / doctor123</span>
-            <span style={{ color: "#1D9E75" }}>Doctor</span>
+            <span className="text-green-600">Doctor</span>
           </div>
-          <div style={s.hintRow}>
+          <div className="flex justify-between">
             <span>admin / admin123</span>
-            <span style={{ color: "#378ADD" }}>Admin</span>
+            <span className="text-blue-600">Admin</span>
+          </div>
+          <div className="flex justify-between">
+            <span>nurse / nurse123</span>
+            <span className="text-red-600">Nurse</span>
           </div>
         </div>
       </div>
