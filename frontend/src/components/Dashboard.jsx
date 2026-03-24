@@ -11,6 +11,8 @@ import {
 } from "chart.js";
 import annotationPlugin from "chartjs-plugin-annotation";
 import { Line } from "react-chartjs-2";
+import VITAL_KEYS from "../data/vitalData";
+import LAB_KEYS from "../data/labData";
 
 ChartJS.register(
   CategoryScale,
@@ -24,23 +26,6 @@ ChartJS.register(
 );
 
 const BASE = "http://localhost:8000/api/v1";
-
-const VITAL_KEYS = [
-  { key: "heart_rate", label: "Heart Rate", color: "#E24B4A" },
-  { key: "respiratory_rate", label: "Resp. Rate", color: "#378ADD" },
-  { key: "spo2_pct", label: "SpO2", color: "#1D9E75" },
-  { key: "temperature_c", label: "Temperature", color: "#EF9F27" },
-  { key: "systolic_bp", label: "Systolic BP", color: "#7F77DD" },
-  { key: "diastolic_bp", label: "Diastolic BP", color: "#D4537E" },
-];
-
-const LAB_KEYS = [
-  { key: "wbc_count", label: "WBC", color: "#E24B4A" },
-  { key: "lactate", label: "Lactate", color: "#378ADD" },
-  { key: "creatinine", label: "Creatinine", color: "#1D9E75" },
-  { key: "crp_level", label: "CRP", color: "#EF9F27" },
-  { key: "hemoglobin", label: "Hemoglobin", color: "#7F77DD" },
-];
 
 const PRIORITY_COLOR = {
   Low: "#3B6D11",
@@ -79,7 +64,7 @@ function chartOptions(currentHour) {
     plugins: {
       legend: {
         position: "bottom",
-        labels: { boxWidth: 10, font: { size: 11 }, color: "#888" },
+        labels: { boxWidth: 10, font: { size: 11 }, color: "black" },
       },
       tooltip: {
         mode: "index",
@@ -109,17 +94,17 @@ function chartOptions(currentHour) {
     },
     scales: {
       x: {
-        ticks: { font: { size: 11 }, color: "#bbb", maxTicksLimit: 10 },
+        ticks: { font: { size: 11 }, color: "black", maxTicksLimit: 10 },
         grid: { color: "#f4f4f4" },
         title: {
           display: true,
           text: "hour",
           font: { size: 11 },
-          color: "#ccc",
+          color: "black",
         },
       },
       y: {
-        ticks: { font: { size: 11 }, color: "#bbb" },
+        ticks: { font: { size: 11 }, color: "black" },
         grid: { color: "#f4f4f4" },
       },
     },
@@ -140,8 +125,11 @@ const s = {
     justifyContent: "space-between",
     marginBottom: "2rem",
   },
-  title: { fontSize: 18, fontWeight: 500, letterSpacing: "-0.02em" },
-  subtitle: { fontSize: 13, color: "#888", marginTop: 2 },
+  title: {
+    fontSize: 18,
+    fontWeight: 500,
+  },
+  subtitle: { fontSize: 13, color: "black", marginTop: 2 },
   card: {
     background: "#fff",
     border: "0.5px solid #e5e5e4",
@@ -150,7 +138,7 @@ const s = {
   },
   label: {
     fontSize: 11,
-    color: "#999",
+    color: "black",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: 4,
@@ -186,7 +174,7 @@ const s = {
   sectionTitle: {
     fontSize: 11,
     fontWeight: 500,
-    color: "#aaa",
+    color: "black",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: "1rem",
@@ -209,14 +197,14 @@ const s = {
   },
   signalText: {
     fontSize: 12,
-    color: "#555",
+    color: "black",
     lineHeight: 1.8,
     fontFamily: "monospace",
     borderBottom: "0.5px solid #f0f0f0",
     paddingBottom: 6,
     marginBottom: 6,
   },
-  empty: { fontSize: 13, color: "#aaa", fontStyle: "italic" },
+  empty: { fontSize: 13, color: "black", fontStyle: "italic" },
   badge: (p) => ({
     display: "inline-block",
     fontSize: 11,
@@ -402,7 +390,7 @@ export default function Dashboard({ user, onLogout }) {
       <div style={s.topbar}>
         <div>
           <div style={s.title}>Sepsis Monitor</div>
-          <div style={s.subtitle}>ICU patient risk dashboard</div>
+          <div style={s.subtitle}>Patient risk dashboard</div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
           {/* AI monitoring indicator */}
@@ -418,7 +406,7 @@ export default function Dashboard({ user, onLogout }) {
               }}
             />
             <span
-              style={{ fontSize: 11, color: "#888", letterSpacing: "0.04em" }}
+              style={{ fontSize: 11, color: "black", letterSpacing: "0.04em" }}
             >
               AI monitoring active
             </span>
@@ -427,7 +415,7 @@ export default function Dashboard({ user, onLogout }) {
           <span
             style={{
               fontSize: 13,
-              color: "#888",
+              color: "black",
               fontFamily: "monospace",
               letterSpacing: "0.04em",
             }}
@@ -443,7 +431,7 @@ export default function Dashboard({ user, onLogout }) {
               {prediction.priority_level}
             </span>
           )}
-          <span style={{ fontSize: 13, color: "#888" }}>{user?.username}</span>
+          <span style={{ fontSize: 13, color: "black" }}>{user?.username}</span>
           <button
             style={{
               fontSize: 12,
@@ -452,7 +440,7 @@ export default function Dashboard({ user, onLogout }) {
               cursor: "pointer",
               border: "0.5px solid #d4d4d4",
               background: "#fff",
-              color: "#888",
+              color: "black",
             }}
             onClick={onLogout}
           >
@@ -561,7 +549,7 @@ export default function Dashboard({ user, onLogout }) {
       {explanation && (
         <div style={{ ...s.card, marginBottom: "1rem" }}>
           <span style={s.sectionTitle}>Clinical explanation</span>
-          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#333" }}>
+          <div style={{ fontSize: 14, lineHeight: 1.7, color: "#1a1a1a" }}>
             {explanation}
           </div>
           <div
@@ -583,7 +571,7 @@ export default function Dashboard({ user, onLogout }) {
                 display: "inline-block",
               }}
             />
-            Generated by AI - for clinical reference only
+            Generated by AI — for clinical reference only
           </div>
         </div>
       )}

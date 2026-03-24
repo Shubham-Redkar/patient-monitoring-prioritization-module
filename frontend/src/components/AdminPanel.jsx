@@ -17,7 +17,7 @@ const s = {
     marginBottom: "2rem",
   },
   title: { fontSize: 18, fontWeight: 500, letterSpacing: "-0.02em" },
-  subtitle: { fontSize: 13, color: "#888", marginTop: 2 },
+  subtitle: { fontSize: 13, color: "black", marginTop: 2 },
   card: {
     background: "#fff",
     border: "0.5px solid #e5e5e4",
@@ -26,7 +26,7 @@ const s = {
   },
   label: {
     fontSize: 11,
-    color: "#999",
+    color: "black",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: 6,
@@ -36,7 +36,7 @@ const s = {
   sectionTitle: {
     fontSize: 11,
     fontWeight: 500,
-    color: "#aaa",
+    color: "black",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: "1rem",
@@ -48,7 +48,7 @@ const s = {
     borderRadius: 6,
     cursor: "pointer",
     border: "0.5px solid #d4d4d4",
-    background: "#1a1a1a",
+    background: "black",
     color: "#fff",
   },
   logoutBtn: {
@@ -58,7 +58,7 @@ const s = {
     cursor: "pointer",
     border: "0.5px solid #d4d4d4",
     background: "#fff",
-    color: "#888",
+    color: "black",
   },
   uploadBox: {
     border: "0.5px dashed #d4d4d4",
@@ -71,7 +71,7 @@ const s = {
   },
   fileName: {
     fontSize: 13,
-    color: "#555",
+    color: "black",
     marginTop: 8,
     fontFamily: "monospace",
   },
@@ -106,8 +106,8 @@ const s = {
     textAlign: "center",
   },
   patientId: { fontSize: 15, fontWeight: 500, fontFamily: "monospace" },
-  patientLabel: { fontSize: 11, color: "#bbb", marginTop: 2 },
-  empty: { fontSize: 13, color: "#aaa", fontStyle: "italic" },
+  patientLabel: { fontSize: 11, color: "black", marginTop: 2 },
+  empty: { fontSize: 13, color: "black", fontStyle: "italic" },
   badge: {
     display: "inline-block",
     fontSize: 11,
@@ -196,12 +196,12 @@ export default function AdminPanel({ user, onLogout }) {
         <div>
           <div style={s.title}>Admin Panel</div>
           <div style={s.subtitle}>
-            Sepsis monitoring — system administration
+            Sepsis monitoring - system administration
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <span style={s.badge}>Admin</span>
-          <span style={{ fontSize: 13, color: "#888" }}>{user.username}</span>
+          <span style={{ fontSize: 13, color: "black" }}>{user.username}</span>
           <button style={s.logoutBtn} onClick={onLogout}>
             Sign out
           </button>
@@ -226,7 +226,7 @@ export default function AdminPanel({ user, onLogout }) {
             onDrop={handleDrop}
             onClick={() => document.getElementById("csvInput").click()}
           >
-            <div style={{ fontSize: 13, color: "#aaa" }}>
+            <div style={{ fontSize: 13, color: "black" }}>
               {file ? "" : "Drag & drop a CSV file here, or click to browse"}
             </div>
             {file && <div style={s.fileName}>{file.name}</div>}
@@ -248,7 +248,7 @@ export default function AdminPanel({ user, onLogout }) {
               {uploading ? "Uploading..." : "Upload CSV"}
             </button>
             {file && (
-              <span style={{ fontSize: 12, color: "#aaa" }}>
+              <span style={{ fontSize: 12, color: "black" }}>
                 ready to upload
               </span>
             )}
@@ -273,7 +273,7 @@ export default function AdminPanel({ user, onLogout }) {
               style={{
                 fontFamily: "monospace",
                 fontSize: 11,
-                color: "#bbb",
+                color: "black",
                 lineHeight: 1.8,
               }}
             >
@@ -318,7 +318,11 @@ export default function AdminPanel({ user, onLogout }) {
           {!pLoading && patients.length > 0 && (
             <>
               <div
-                style={{ fontSize: 12, color: "#bbb", marginBottom: "0.75rem" }}
+                style={{
+                  fontSize: 12,
+                  color: "black",
+                  marginBottom: "0.75rem",
+                }}
               >
                 {patients.length} patient{patients.length !== 1 ? "s" : ""}{" "}
                 admitted

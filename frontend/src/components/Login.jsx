@@ -83,7 +83,7 @@ const s = {
   },
 };
 
-export default function Login({ onLogin }) {
+const Login = ({ onLogin }) => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState(null);
@@ -163,4 +163,6 @@ export default function Login({ onLogin }) {
       </div>
     </div>
   );
-}
+};
+
+export default Login;
