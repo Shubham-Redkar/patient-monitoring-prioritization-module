@@ -14,4 +14,5 @@ class PriorityService:
         if lab_label == 0 and sustained_instability == 1:
             return "Medium"
 
-        return "Low"
+        # "Normal" matches the Literal in PredictionResponse; "Low" did not.
+        return "Normal"

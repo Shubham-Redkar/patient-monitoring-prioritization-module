@@ -1,5 +1,6 @@
 from db.mongodb import get_db
 
+
 class UserRepository:
     @property
     def col(self):

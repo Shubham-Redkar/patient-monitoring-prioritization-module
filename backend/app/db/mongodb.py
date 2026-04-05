@@ -9,18 +9,21 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("MONGO_DB")
 
-_client = AsyncIOMotorClient(
-    MONGO_URI,
-    tls=True,
-    tlsCAFile=certifi.where()
-)
+# Client is created lazily on first use so that:
+# (a) the guard in get_client() is actually reachable, and
+# (b) tests can set MONGO_URI before any connection attempt.
+_client: AsyncIOMotorClient | None = None
 
 
 def get_client() -> AsyncIOMotorClient:
     global _client
 
     if _client is None:
-        _client = AsyncIOMotorClient(MONGO_URI)
+        _client = AsyncIOMotorClient(
+            MONGO_URI,
+            tls=True,
+            tlsCAFile=certifi.where(),
+        )
 
     return _client
 

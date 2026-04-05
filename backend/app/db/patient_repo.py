@@ -108,7 +108,9 @@ class PatientRepository:
 
         return result.modified_count
 
-    async def override_patient_priority(self, patient_id: int, priority: str, reason: str, doctor_name: str):
+    async def override_patient_priority(
+        self, patient_id: int, priority: str, reason: str, doctor_name: str
+    ):
         await self.meta_col.update_one(
             {"patient_id": patient_id},
             {
@@ -116,10 +118,10 @@ class PatientRepository:
                     "manual_priority": priority,
                     "manual_priority_reason": reason,
                     "manual_priority_by": doctor_name,
-                    "manual_priority_at": datetime.now(timezone.utc)
+                    "manual_priority_at": datetime.now(timezone.utc),
                 }
             },
-            upsert=True
+            upsert=True,
         )
 
     async def get_patient_meta(self, patient_id: int):

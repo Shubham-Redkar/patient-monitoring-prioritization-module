@@ -6,10 +6,37 @@ router = APIRouter(prefix="/api/v1", tags=["patients"])
 
 
 @router.get("/patients")
-async def list_patients(request: Request):
+async def list_patients(
+    request: Request,
+    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
+):
+    # Previously open — unauthenticated requests could enumerate all patient IDs
     repo = request.app.state.patient_repo
     ids = await repo.list_patients()
     return {"patient_ids": sorted(ids)}
+
+
+@router.get("/patients/{patient_id}/meta")
+async def get_patient_meta(
+    patient_id: int,
+    request: Request,
+    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+):
+    repo = request.app.state.patient_repo
+    meta = await repo.get_patient_meta(patient_id)
+    if not meta:
+        return {"patient_id": patient_id, "manual_override": None}
+
+    override = None
+    if meta.get("manual_priority"):
+        override = {
+            "priority": meta["manual_priority"],
+            "reason": meta.get("manual_priority_reason", ""),
+            "set_by": meta.get("manual_priority_by", ""),
+            "set_at": str(meta.get("manual_priority_at", "")),
+        }
+
+    return {"patient_id": patient_id, "manual_override": override}
 
 
 @router.post("/patients/{patient_id}/override_priority")
@@ -31,6 +58,27 @@ async def override_priority(
     return {"message": "Priority overridden successfully"}
 
 
+@router.delete("/patients/{patient_id}/override_priority")
+async def clear_override(
+    patient_id: int,
+    request: Request,
+    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+):
+    repo = request.app.state.patient_repo
+    await repo.meta_col.update_one(
+        {"patient_id": patient_id},
+        {
+            "$unset": {
+                "manual_priority": "",
+                "manual_priority_reason": "",
+                "manual_priority_by": "",
+                "manual_priority_at": "",
+            }
+        },
+    )
+    return {"message": "Override cleared"}
+
+
 @router.get("/patients/{patient_id}/history")
 async def get_patient_history(
     patient_id: int,
@@ -38,31 +86,23 @@ async def get_patient_history(
     to_hour: int = 72,
     request: Request = None,
 ):
-    try:
-        repo = request.app.state.patient_repo
-        readings = await repo.get_history(patient_id, from_hour, to_hour)
+    repo = request.app.state.patient_repo
+    readings = await repo.get_history(patient_id, from_hour, to_hour)
 
-        if not readings:
-            raise HTTPException(status_code=404, detail="No history found for patient")
+    if not readings:
+        raise HTTPException(status_code=404, detail="No history found for patient")
 
-        vitals_series = []
-        labs_series = []
+    vitals_series = []
+    labs_series = []
 
-        for r in readings:
-            hour = r["hour_from_admission"]
+    for r in readings:
+        hour = r["hour_from_admission"]
+        vitals_series.append({"hour": hour, **r.get("vitals", {})})
+        if r.get("labs"):
+            labs_series.append({"hour": hour, **r["labs"]})
 
-            vitals_series.append({"hour": hour, **r.get("vitals", {})})
-
-            if r.get("labs"):
-                labs_series.append({"hour": hour, **r["labs"]})
-
-        return {
-            "patient_id": patient_id,
-            "vitals": vitals_series,
-            "labs": labs_series,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    return {
+        "patient_id": patient_id,
+        "vitals": vitals_series,
+        "labs": labs_series,
+    }

@@ -1,9 +1,15 @@
 from pydantic import BaseModel, Field
+from schemas.vital_schema import ReadingBase
+from utils.constants import FEATURE_META
+
+_wbc = FEATURE_META["wbc_count"]
+_lac = FEATURE_META["lactate"]
+_cre = FEATURE_META["creatinine"]
+_crp = FEATURE_META["crp_level"]
+_hgb = FEATURE_META["hemoglobin"]
 
 
-class LabInput(BaseModel):
-    patient_id: int
-    hour_from_admission: int
+class LabInput(ReadingBase):
     wbc_count: float = Field(..., ge=0)
     lactate: float = Field(..., ge=0)
     creatinine: float = Field(..., ge=0)

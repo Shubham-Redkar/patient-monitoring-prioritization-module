@@ -10,16 +10,23 @@ client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 
 def generate_explanation(signals):
-
-    lab = signals.get("lab", [])
-    vitals = signals.get("vitals", [])
+    # Use LLM-specific signals (no ML jargon) when available, fall back to UI signals
+    lab = signals.get("lab_llm") or signals.get("lab", [])
+    vitals = signals.get("vitals_llm") or signals.get("vitals", [])
     priority = signals.get("priority", "Unknown")
 
-    lab_text = "\n".join(f"  - {s}" for s in lab) if lab else "  - None"
-    vital_text = "\n".join(f"  - {s}" for s in vitals) if vitals else "  - None"
+    lab_text = (
+        "\n".join(f"  - {s}" for s in lab) if lab else "  - No lab data available"
+    )
+    vital_text = (
+        "\n".join(f"  - {s}" for s in vitals)
+        if vitals
+        else "  - No vital sign data available"
+    )
 
-    prompt = f"""
-A patient monitoring system has raised a {priority} sepsis alert based on the following clinical data:
+    prompt = f"""You are reviewing a patient flagged as {priority} priority for sepsis risk.
+
+The following are the most clinically significant findings from their recent lab results and vital signs:
 
 Lab Results:
 {lab_text}
@@ -27,9 +34,11 @@ Lab Results:
 Vital Signs:
 {vital_text}
 
-In 1-2 sentences, explain what these specific values indicate clinically and why they triggered a {priority} alert.
-Be specific — reference the actual values provided. Maximum 60 words.
-"""
+Write 2 short sentences for the treating clinician:
+1. What these specific values indicate about this patient's current condition.
+2. What warrants close attention or follow-up.
+
+Use plain clinical language. Reference actual values. Do not mention algorithms, models, scores, or statistical methods. Maximum 60 words."""
 
     try:
         response = client.chat.completions.create(
@@ -37,15 +46,19 @@ Be specific — reference the actual values provided. Maximum 60 words.
             messages=[
                 {
                     "role": "system",
-                    "content": "You are a clinical decision support assistant. Always respond with 1-2 medically accurate sentences referencing the specific values provided.",
+                    "content": (
+                        "You are a clinical decision support tool writing for attending physicians and nurses. "
+                        "Be direct and clinically precise. Never mention AI, machine learning, SHAP, models, "
+                        "predictions, or algorithms. Focus only on the patient's physiological status."
+                    ),
                 },
                 {
                     "role": "user",
                     "content": prompt,
                 },
             ],
-            temperature=0.2,
-            max_tokens=120,
+            temperature=0.1,
+            max_tokens=130,
         )
         return response.choices[0].message.content.strip()
 
