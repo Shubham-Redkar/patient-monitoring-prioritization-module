@@ -77,11 +77,9 @@ const AppRoutes = () => {
 const App = () => {
   return (
     <AuthProvider>
-      {" "}
       <Router>
-        {" "}
-        <AppRoutes />{" "}
-      </Router>{" "}
+        <AppRoutes />
+      </Router>
     </AuthProvider>
   );
 };

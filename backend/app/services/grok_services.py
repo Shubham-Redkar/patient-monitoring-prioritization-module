@@ -1,4 +1,5 @@
 import os
+from collections import OrderedDict
 from groq import Groq
 from dotenv import load_dotenv
 
@@ -8,12 +9,53 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
+# FIX (prev pass): Cache explanations keyed by (patient_id, priority_level, signal_fingerprint)
+# to stop the LLM from being called on every 10-second poll and causing the
+# Clinical Explanation card to flicker with slightly different wording each time.
+#
+# FIX (this pass): Use an OrderedDict-based LRU cache with a hard cap of 256
+# entries so memory doesn't grow unboundedly on a long-running server.
+_CACHE_MAX = 256
+_explanation_cache: OrderedDict[tuple, str] = OrderedDict()
 
-def generate_explanation(signals):
+
+def _signal_fingerprint(signals: dict) -> str:
+    """Stable string that changes only when clinically meaningful signals change."""
+    lab = sorted(signals.get("lab", []))
+    vitals = sorted(signals.get("vitals", []))
+    return "|".join(lab + vitals)
+
+
+def _cache_get(key: tuple) -> str | None:
+    if key not in _explanation_cache:
+        return None
+    # Move to end (most-recently-used)
+    _explanation_cache.move_to_end(key)
+    return _explanation_cache[key]
+
+
+def _cache_set(key: tuple, value: str) -> None:
+    if key in _explanation_cache:
+        _explanation_cache.move_to_end(key)
+    _explanation_cache[key] = value
+    if len(_explanation_cache) > _CACHE_MAX:
+        # Evict least-recently-used (front of OrderedDict)
+        _explanation_cache.popitem(last=False)
+
+
+def generate_explanation(signals, patient_id=None, priority=None):
+    # Build cache key — fall back to no caching if caller doesn't supply ids
+    cache_key = None
+    if patient_id is not None and priority is not None:
+        cache_key = (patient_id, priority, _signal_fingerprint(signals))
+        cached = _cache_get(cache_key)
+        if cached is not None:
+            return cached
+
     # Use LLM-specific signals (no ML jargon) when available, fall back to UI signals
     lab = signals.get("lab_llm") or signals.get("lab", [])
     vitals = signals.get("vitals_llm") or signals.get("vitals", [])
-    priority = signals.get("priority", "Unknown")
+    priority_label = signals.get("priority", priority or "Unknown")
 
     lab_text = (
         "\n".join(f"  - {s}" for s in lab) if lab else "  - No lab data available"
@@ -24,7 +66,7 @@ def generate_explanation(signals):
         else "  - No vital sign data available"
     )
 
-    prompt = f"""You are reviewing a patient flagged as {priority} priority for sepsis risk.
+    prompt = f"""You are reviewing a patient flagged as {priority_label} priority for sepsis risk.
 
 The following are the most clinically significant findings from their recent lab results and vital signs:
 
@@ -60,7 +102,12 @@ Use plain clinical language. Reference actual values. Do not mention algorithms,
             temperature=0.1,
             max_tokens=130,
         )
-        return response.choices[0].message.content.strip()
+        result = response.choices[0].message.content.strip()
+
+        if cache_key is not None:
+            _cache_set(cache_key, result)
+
+        return result
 
     except Exception as e:
         raise RuntimeError(f"Groq explanation failed: {str(e)}")

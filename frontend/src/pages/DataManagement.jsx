@@ -22,7 +22,10 @@ function StatusMessage({ msg }) {
 }
 
 export default function DataManagement() {
-  const { user, logout } = useAuth();
+  // FIX: was reading token via localStorage.getItem("token") on every request
+  // instead of consuming it from the auth context. Using the context value is
+  // consistent with every other component and avoids stale-token edge cases.
+  const { user, token, logout } = useAuth();
   const navigate = useNavigate();
 
   const [file, setFile] = useState(null);
@@ -62,8 +65,7 @@ export default function DataManagement() {
     try {
       const res = await fetch(`${BASE}/upload-csv`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        body: formData,
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Upload failed");
@@ -94,7 +96,7 @@ export default function DataManagement() {
     try {
       const res = await fetch(`${BASE}/patients/${delPatientId}`, {
         method: "DELETE",
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+        headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Deletion failed");

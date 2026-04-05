@@ -9,22 +9,17 @@ load_dotenv()
 MONGO_URI = os.getenv("MONGO_URI")
 DB_NAME = os.getenv("MONGO_DB")
 
-# Client is created lazily on first use so that:
-# (a) the guard in get_client() is actually reachable, and
-# (b) tests can set MONGO_URI before any connection attempt.
 _client: AsyncIOMotorClient | None = None
 
 
 def get_client() -> AsyncIOMotorClient:
     global _client
-
     if _client is None:
         _client = AsyncIOMotorClient(
             MONGO_URI,
             tls=True,
             tlsCAFile=certifi.where(),
         )
-
     return _client
 
 
@@ -33,7 +28,6 @@ def get_db():
 
 
 async def init_indexes():
-
     db = get_db()
 
     await db.patient_readings.create_index(
@@ -50,6 +44,16 @@ async def init_indexes():
     await db.patient_readings.create_index(
         [("predictions.vital_anomaly_flag", ASCENDING), ("patient_id", ASCENDING)],
         name="anomaly_patient",
+    )
+
+    # FIX: users collection had no index on username — every login and /me check
+    # performed a full collection scan. unique=True also prevents duplicate usernames
+    # at the database layer (previously only the app layer checked for duplicates,
+    # which had a race-condition window).
+    await db.users.create_index(
+        [("username", ASCENDING)],
+        unique=True,
+        name="users_username_unique",
     )
 
     print("MongoDB indexes ensured.")

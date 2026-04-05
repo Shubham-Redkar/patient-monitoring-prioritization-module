@@ -10,7 +10,6 @@ async def list_patients(
     request: Request,
     current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
 ):
-    # Previously open — unauthenticated requests could enumerate all patient IDs
     repo = request.app.state.patient_repo
     ids = await repo.list_patients()
     return {"patient_ids": sorted(ids)}
@@ -44,7 +43,8 @@ async def override_priority(
     patient_id: int,
     request: Request,
     data: dict,
-    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+    # FIX: restricted to doctor-only (admin was removed in previous pass)
+    current_user: UserResponse = Depends(require_role(["doctor"])),
 ):
     priority = data.get("priority")
     reason = data.get("reason")
@@ -62,7 +62,7 @@ async def override_priority(
 async def clear_override(
     patient_id: int,
     request: Request,
-    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+    current_user: UserResponse = Depends(require_role(["doctor"])),
 ):
     repo = request.app.state.patient_repo
     await repo.meta_col.update_one(
@@ -85,6 +85,8 @@ async def get_patient_history(
     from_hour: int = 0,
     to_hour: int = 72,
     request: Request = None,
+    # FIX: was completely unauthenticated — anyone could pull full patient history
+    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
 ):
     repo = request.app.state.patient_repo
     readings = await repo.get_history(patient_id, from_hour, to_hour)

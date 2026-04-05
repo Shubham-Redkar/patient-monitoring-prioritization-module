@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request, HTTPException, Depends
 import pandas as pd
 
 from utils.vital_features import compute_vital_features
@@ -9,6 +9,8 @@ from utils.explanability import extract_signals
 from services.priority_service import PriorityService
 from services.grok_services import generate_explanation
 from schemas.response_schema import PredictionResponse
+from schemas.user_schema import UserResponse
+from utils.auth import require_role
 
 router = APIRouter(prefix="/api/v1", tags=["prediction"])
 
@@ -16,7 +18,13 @@ priority_service = PriorityService()
 
 
 @router.get("/patients/{patient_id}/predict", response_model=PredictionResponse)
-async def predict(patient_id: int, hour: int, request: Request):
+async def predict(
+    patient_id: int,
+    hour: int,
+    request: Request,
+    # FIX: was completely unauthenticated — any caller could run predictions
+    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
+):
 
     repo = request.app.state.patient_repo
     vital_service = request.app.state.vital_service
@@ -85,12 +93,11 @@ async def predict(patient_id: int, hour: int, request: Request):
         vital_service=vital_service,
     )
 
-    # Generate explanation whenever signals exist, not only during alerts.
-    # The frontend's Clinical Explanation card was blank for non-alert patients
-    # because explanation was only populated when alert["alert"] was True.
     explanation = None
     if signals.get("lab") or signals.get("vitals"):
-        explanation = generate_explanation(signals)
+        explanation = generate_explanation(
+            signals, patient_id=patient_id, priority=priority
+        )
 
     return {
         "patient_id": patient_id,

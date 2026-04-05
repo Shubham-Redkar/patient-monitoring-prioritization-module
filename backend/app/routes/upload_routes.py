@@ -10,7 +10,6 @@ from utils.auth import require_role
 
 router = APIRouter(prefix="/api/v1", tags=["data"])
 
-# All columns the CSV must contain
 REQUIRED_COLUMNS = {
     "patient_id",
     "hour_from_admission",
@@ -43,7 +42,6 @@ async def upload_csv(
     if df.empty:
         raise HTTPException(status_code=422, detail="CSV file is empty.")
 
-    # Check all required columns are present before touching any row
     missing_cols = REQUIRED_COLUMNS - set(df.columns)
     if missing_cols:
         raise HTTPException(
@@ -55,10 +53,9 @@ async def upload_csv(
     row_errors = []
 
     for idx, row in df.iterrows():
-        row_num = idx + 2  # +2 → 1-based, skipping header
+        row_num = idx + 2
         errors_for_row = []
 
-        # Validate vitals
         try:
             vital = VitalInput(
                 patient_id=row["patient_id"],
@@ -79,7 +76,6 @@ async def upload_csv(
                 errors_for_row.append(f"vitals: {str(e)}")
             vital = None
 
-        # Validate labs
         try:
             lab = LabInput(
                 patient_id=row["patient_id"],
@@ -101,7 +97,7 @@ async def upload_csv(
 
         if errors_for_row:
             row_errors.append({"row": row_num, "errors": errors_for_row})
-            continue  # skip invalid rows, collect all errors first
+            continue
 
         readings.append(
             {
@@ -125,7 +121,6 @@ async def upload_csv(
             }
         )
 
-    # If any rows failed validation, reject the whole upload with details
     if row_errors:
         raise HTTPException(
             status_code=422,
@@ -156,6 +151,12 @@ async def delete_patient_data(
         raise HTTPException(
             status_code=404, detail="Patient not found or already deleted"
         )
+
+    # FIX: deleting a patient left their manual_priority override in patient_meta,
+    # which would reappear if a new patient was ever assigned the same ID.
+    # Now we clean up the meta document atomically with the readings deletion.
+    await repo.meta_col.delete_one({"patient_id": patient_id})
+
     return {
         "message": "Patient data deleted successfully",
         "deleted_count": result.deleted_count,

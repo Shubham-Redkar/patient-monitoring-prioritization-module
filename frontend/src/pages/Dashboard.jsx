@@ -32,13 +32,26 @@ const PRIORITY_STYLE = {
   },
 };
 
+// FIX: Run at most `concurrency` predict calls at a time.
+// Previously all N fired simultaneously — each one triggers ML inference + an
+// LLM call, so the backend queued up and the dashboard felt very slow.
+async function fetchWithConcurrency(ids, fetchOne, concurrency = 3) {
+  const queue = [...ids];
+  const worker = async () => {
+    while (queue.length > 0) {
+      const id = queue.shift();
+      if (id == null) break;
+      await fetchOne(id);
+    }
+  };
+  await Promise.all(Array.from({ length: concurrency }, worker));
+}
+
 export default function Dashboard() {
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
-
   const authHeaders = { Authorization: `Bearer ${token}` };
 
   const fetchPatients = async () => {
@@ -47,16 +60,10 @@ export default function Dashboard() {
       const res = await fetch(`${BASE}/patients`, { headers: authHeaders });
       const data = await res.json();
       const ids = data.patient_ids || [];
-
-      const initial = ids.map((id) => ({
-        id,
-        priority: "Loading",
-        alert: false,
-      }));
-      setPatients(initial);
+      setPatients(ids.map((id) => ({ id, priority: "Loading", alert: false })));
       setLoading(false);
 
-      ids.forEach(async (id) => {
+      await fetchWithConcurrency(ids, async (id) => {
         try {
           const res = await fetch(`${BASE}/patients/${id}/predict?hour=72`, {
             headers: authHeaders,
@@ -76,7 +83,7 @@ export default function Dashboard() {
             ),
           );
         } catch {
-          // ignore individual errors
+          /* ignore */
         }
       });
     } catch {
@@ -102,7 +109,6 @@ export default function Dashboard() {
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
@@ -137,49 +143,56 @@ export default function Dashboard() {
       </div>
 
       <div className="p-6 max-w-7xl mx-auto">
-        {/* ── Summary strip ───────────────────────────────────────────────── */}
         {!loading && patients.length > 0 && (
           <div className="grid grid-cols-4 gap-4 mb-6">
-            <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-4 flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-red-600" />
-              <div>
-                <p className="text-2xl font-bold text-red-800">
-                  {counts.Critical}
-                </p>
-                <p className="text-sm text-red-600">Critical</p>
+            {[
+              {
+                key: "Critical",
+                dot: "bg-red-600",
+                bg: "bg-red-50",
+                border: "border-red-200",
+                text: "text-red-800",
+                sub: "text-red-600",
+              },
+              {
+                key: "High",
+                dot: "bg-orange-500",
+                bg: "bg-orange-50",
+                border: "border-orange-200",
+                text: "text-orange-800",
+                sub: "text-orange-600",
+              },
+              {
+                key: "Medium",
+                dot: "bg-yellow-500",
+                bg: "bg-yellow-50",
+                border: "border-yellow-200",
+                text: "text-yellow-800",
+                sub: "text-yellow-600",
+              },
+              {
+                key: "Normal",
+                dot: "bg-green-600",
+                bg: "bg-green-50",
+                border: "border-green-200",
+                text: "text-green-800",
+                sub: "text-green-600",
+              },
+            ].map(({ key, dot, bg, border, text, sub }) => (
+              <div
+                key={key}
+                className={`${bg} border ${border} rounded-xl px-5 py-4 flex items-center gap-3`}
+              >
+                <span className={`w-3 h-3 rounded-full ${dot}`} />
+                <div>
+                  <p className={`text-2xl font-bold ${text}`}>{counts[key]}</p>
+                  <p className={`text-sm ${sub}`}>{key}</p>
+                </div>
               </div>
-            </div>
-            <div className="bg-orange-50 border border-orange-200 rounded-xl px-5 py-4 flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-orange-500" />
-              <div>
-                <p className="text-2xl font-bold text-orange-800">
-                  {counts.High}
-                </p>
-                <p className="text-sm text-orange-600">High</p>
-              </div>
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-xl px-5 py-4 flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-yellow-500" />
-              <div>
-                <p className="text-2xl font-bold text-yellow-800">
-                  {counts.Medium}
-                </p>
-                <p className="text-sm text-yellow-600">Medium</p>
-              </div>
-            </div>
-            <div className="bg-green-50 border border-green-200 rounded-xl px-5 py-4 flex items-center gap-3">
-              <span className="w-3 h-3 rounded-full bg-green-600" />
-              <div>
-                <p className="text-2xl font-bold text-green-800">
-                  {counts.Normal}
-                </p>
-                <p className="text-sm text-green-600">Normal</p>
-              </div>
-            </div>
+            ))}
           </div>
         )}
 
-        {/* ── Patient grid ─────────────────────────────────────────────────── */}
         {loading ? (
           <div className="text-base text-slate-500">Loading patients…</div>
         ) : (
@@ -190,12 +203,7 @@ export default function Dashboard() {
                 <div
                   key={p.id}
                   onClick={() => navigate(`/patient/${p.id}`)}
-                  className={`
-                    bg-white rounded-xl p-5 cursor-pointer
-                    border-t-4 border ${style.topBar} ${style.border}
-                    hover:-translate-y-1 hover:shadow-md transition-all duration-200
-                    ${p.priority === "Loading" ? "animate-pulse" : ""}
-                  `}
+                  className={`bg-white rounded-xl p-5 cursor-pointer border-t-4 border ${style.topBar} ${style.border} hover:-translate-y-1 hover:shadow-md transition-all duration-200 ${p.priority === "Loading" ? "animate-pulse" : ""}`}
                 >
                   <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">
                     Patient ID
@@ -203,7 +211,6 @@ export default function Dashboard() {
                   <p className="text-2xl font-bold font-mono text-slate-900 mb-3">
                     {p.id}
                   </p>
-
                   <span
                     className={`inline-block text-sm font-semibold px-3 py-1 rounded-full ${style.badge}`}
                   >
@@ -211,7 +218,6 @@ export default function Dashboard() {
                       ? "Loading…"
                       : `${p.priority} Priority`}
                   </span>
-
                   {p.alert && (
                     <p
                       className={`text-sm font-semibold mt-3 ${p.alertLevel === "CRITICAL" ? "text-red-700" : "text-orange-700"}`}

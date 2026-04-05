@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
+from typing import Literal
 from schemas.user_schema import Token, UserCreate, UserResponse
 from utils.auth import (
     get_password_hash,
@@ -8,9 +9,16 @@ from utils.auth import (
     create_access_token,
     ACCESS_TOKEN_EXPIRE_MINUTES,
     get_current_user,
+    require_role,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+# Only these roles may be self-registered via the API.
+# FIX: previously any caller could POST {"role": "admin"} and register an
+# admin account without any authentication. Admin accounts must now be
+# seeded directly in main.py or via a protected admin-only endpoint.
+_REGISTERABLE_ROLES: set[str] = {"doctor", "nurse"}
 
 
 @router.post("/login", response_model=Token)
@@ -38,9 +46,16 @@ async def login_for_access_token(
     }
 
 
-# For development / testing, allowing easy user creation
 @router.post("/register")
 async def register(request: Request, user_in: UserCreate):
+    # FIX: block privileged role registration — admin must be seeded at startup
+    if user_in.role not in _REGISTERABLE_ROLES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Role '{user_in.role}' cannot be registered via this endpoint. "
+            f"Allowed roles: {sorted(_REGISTERABLE_ROLES)}",
+        )
+
     repo = request.app.state.user_repo
     existing_user = await repo.get_user_by_username(user_in.username)
     if existing_user:

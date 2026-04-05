@@ -358,49 +358,60 @@ export default function PatientDetails() {
     [token],
   );
 
-  const fetchHistory = useCallback(async (pid) => {
-    setChartLoading(true);
-    try {
-      const res = await fetch(
-        `${BASE}/patients/${pid}/history?from_hour=0&to_hour=72`,
-      );
-      if (!res.ok) throw new Error();
-      setHistory(await res.json());
-    } catch {
-      setHistory(null);
-    } finally {
-      setChartLoading(false);
-    }
-  }, []);
+  const fetchHistory = useCallback(
+    async (pid) => {
+      setChartLoading(true);
+      try {
+        // FIX: history endpoint now requires auth — was missing Authorization header
+        const res = await fetch(
+          `${BASE}/patients/${pid}/history?from_hour=0&to_hour=72`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!res.ok) throw new Error();
+        setHistory(await res.json());
+      } catch {
+        setHistory(null);
+      } finally {
+        setChartLoading(false);
+      }
+    },
+    [token],
+  );
 
-  const fetchPrediction = useCallback(async (pid, h) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(`${BASE}/patients/${pid}/predict?hour=${h}`);
-      if (!res.ok) {
-        const e = await res.json();
-        throw new Error(e.detail || res.status);
+  const fetchPrediction = useCallback(
+    async (pid, h) => {
+      setLoading(true);
+      setError(null);
+      try {
+        // FIX: predict endpoint now requires auth — was missing Authorization header
+        const res = await fetch(`${BASE}/patients/${pid}/predict?hour=${h}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+          const e = await res.json();
+          throw new Error(e.detail || res.status);
+        }
+        const data = await res.json();
+        setPrediction(data);
+        // Update explanation only on first load (ref is null) or when priority changes.
+        // Regenerating on every 10-second poll caused it to flicker with slightly
+        // different wording each time the LLM was called — this keeps it stable.
+        if (
+          prevPriorityRef.current === null ||
+          data.priority_level !== prevPriorityRef.current
+        ) {
+          prevPriorityRef.current = data.priority_level;
+          setExplanation(data.explanation);
+        }
+      } catch (e) {
+        setError(e.message);
+        setPrediction(null);
+      } finally {
+        setLoading(false);
       }
-      const data = await res.json();
-      setPrediction(data);
-      // Update explanation only on first load (ref is null) or when priority changes.
-      // Regenerating on every 10-second poll caused it to flicker with slightly
-      // different wording each time the LLM was called — this keeps it stable.
-      if (
-        prevPriorityRef.current === null ||
-        data.priority_level !== prevPriorityRef.current
-      ) {
-        prevPriorityRef.current = data.priority_level;
-        setExplanation(data.explanation);
-      }
-    } catch (e) {
-      setError(e.message);
-      setPrediction(null);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    },
+    [token],
+  );
 
   useEffect(() => {
     if (!patientId) return;
@@ -420,6 +431,7 @@ export default function PatientDetails() {
       try {
         const res = await fetch(
           `${BASE}/patients/${patientId}/history?from_hour=0&to_hour=72`,
+          { headers: { Authorization: `Bearer ${token}` } },
         );
         if (!res.ok) return;
         const data = await res.json();
@@ -433,7 +445,7 @@ export default function PatientDetails() {
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [patientId, fetchPrediction]);
+  }, [patientId, fetchPrediction, token]);
 
   useEffect(() => {
     return () => clearTimeout(debounceRef.current);
@@ -528,7 +540,7 @@ export default function PatientDetails() {
         `Label ${prediction.lab_risk_label}`)
       : null;
 
-  const canOverride = user?.role === "doctor" || user?.role === "admin";
+  const canOverride = user?.role === "doctor";
   const displayedPriority = prediction?.priority_level ?? "—";
 
   return (
