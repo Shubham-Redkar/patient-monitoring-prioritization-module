@@ -9,12 +9,6 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
 
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-# FIX (prev pass): Cache explanations keyed by (patient_id, priority_level, signal_fingerprint)
-# to stop the LLM from being called on every 10-second poll and causing the
-# Clinical Explanation card to flicker with slightly different wording each time.
-#
-# FIX (this pass): Use an OrderedDict-based LRU cache with a hard cap of 256
-# entries so memory doesn't grow unboundedly on a long-running server.
 _CACHE_MAX = 256
 _explanation_cache: OrderedDict[tuple, str] = OrderedDict()
 
@@ -76,11 +70,11 @@ Lab Results:
 Vital Signs:
 {vital_text}
 
-Write 2 short sentences for the treating clinician:
+Write exactly 2 sentences for the treating clinician:
 1. What these specific values indicate about this patient's current condition.
 2. What warrants close attention or follow-up.
 
-Use plain clinical language. Reference actual values. Do not mention algorithms, models, scores, or statistical methods. Maximum 60 words."""
+Use plain clinical language. Reference actual values. Do not mention algorithms, models, scores, or statistical methods. Maximum 80 words. Always complete both sentences fully."""
 
     try:
         response = client.chat.completions.create(
@@ -100,7 +94,7 @@ Use plain clinical language. Reference actual values. Do not mention algorithms,
                 },
             ],
             temperature=0.1,
-            max_tokens=130,
+            max_tokens=200,
         )
         result = response.choices[0].message.content.strip()
 

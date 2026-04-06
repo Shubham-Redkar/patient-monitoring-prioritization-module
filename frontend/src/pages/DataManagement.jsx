@@ -66,6 +66,7 @@ export default function DataManagement() {
       const res = await fetch(`${BASE}/upload-csv`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
+        body: formData,
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Upload failed");

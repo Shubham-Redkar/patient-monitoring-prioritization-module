@@ -4,7 +4,7 @@ import {
   Route,
   Navigate,
 } from "react-router-dom";
-
+import UserManagement from "./pages/UserManagement";
 import Login from "./components/Login";
 import Dashboard from "./pages/Dashboard";
 import PatientDetails from "./components/PatientDetails";
@@ -54,6 +54,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute allowedRoles={["admin", "doctor"]}>
             <PatientDetails />
+          </ProtectedRoute>
+        }
+      />
+
+      <Route
+        path="/users"
+        element={
+          <ProtectedRoute allowedRoles={["admin"]}>
+            <UserManagement />
           </ProtectedRoute>
         }
       />

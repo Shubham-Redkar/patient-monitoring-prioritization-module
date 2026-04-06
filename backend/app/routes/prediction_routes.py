@@ -94,7 +94,11 @@ async def predict(
     )
 
     explanation = None
-    if signals.get("lab") or signals.get("vitals"):
+    # Only call Grok for High/Critical patients — Normal and Medium don't need
+    # an LLM explanation and skipping them saves the majority of token usage.
+    if priority in ("Critical", "High") and (
+        signals.get("lab") or signals.get("vitals")
+    ):
         explanation = generate_explanation(
             signals, patient_id=patient_id, priority=priority
         )

@@ -14,10 +14,7 @@ from utils.auth import (
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-# Only these roles may be self-registered via the API.
-# FIX: previously any caller could POST {"role": "admin"} and register an
-# admin account without any authentication. Admin accounts must now be
-# seeded directly in main.py or via a protected admin-only endpoint.
+# Only these roles may be self-registered via the public API.
 _REGISTERABLE_ROLES: set[str] = {"doctor", "nurse"}
 
 
@@ -48,7 +45,6 @@ async def login_for_access_token(
 
 @router.post("/register")
 async def register(request: Request, user_in: UserCreate):
-    # FIX: block privileged role registration — admin must be seeded at startup
     if user_in.role not in _REGISTERABLE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -76,10 +72,86 @@ async def register(request: Request, user_in: UserCreate):
 
 @router.get("/me", response_model=Token)
 async def get_me(current_user: UserResponse = Depends(get_current_user)):
-    """Validate a stored token and return the current user. Used by the
-    frontend on page load to verify the session is still active."""
+    """Validate a stored token and return the current user."""
     return {
-        "access_token": "",  # token already validated; no need to re-issue
+        "access_token": "",
         "token_type": "bearer",
         "user": {"username": current_user.username, "role": current_user.role},
     }
+
+
+# ── Admin-only user management ────────────────────────────────────────────────
+
+
+@router.get("/users")
+async def list_users(
+    request: Request,
+    current_user: UserResponse = Depends(require_role(["admin"])),
+):
+    """List all users (admin only). Passwords are never returned."""
+    repo = request.app.state.user_repo
+    users = await repo.list_users()
+    return {"users": users}
+
+
+@router.post("/users")
+async def admin_create_user(
+    request: Request,
+    user_in: dict,
+    current_user: UserResponse = Depends(require_role(["admin"])),
+):
+    """Admin creates a user of any role including admin."""
+    username = user_in.get("username", "").strip()
+    password = user_in.get("password", "")
+    role = user_in.get("role", "")
+
+    if not username or len(username) < 3:
+        raise HTTPException(
+            status_code=422, detail="Username must be at least 3 characters."
+        )
+    if not password or len(password) < 8:
+        raise HTTPException(
+            status_code=422, detail="Password must be at least 8 characters."
+        )
+    if role not in {"doctor", "nurse", "admin"}:
+        raise HTTPException(
+            status_code=422, detail="Role must be doctor, nurse, or admin."
+        )
+
+    repo = request.app.state.user_repo
+    existing = await repo.get_user_by_username(username)
+    if existing:
+        raise HTTPException(status_code=400, detail="Username already exists.")
+
+    await repo.create_user(
+        {
+            "username": username,
+            "hashed_password": get_password_hash(password),
+            "role": role,
+        }
+    )
+    return {
+        "message": f"User '{username}' created successfully.",
+        "username": username,
+        "role": role,
+    }
+
+
+@router.delete("/users/{username}")
+async def admin_delete_user(
+    username: str,
+    request: Request,
+    current_user: UserResponse = Depends(require_role(["admin"])),
+):
+    """Admin deletes a user. Cannot delete your own account."""
+    if username == current_user.username:
+        raise HTTPException(
+            status_code=400, detail="You cannot delete your own account."
+        )
+
+    repo = request.app.state.user_repo
+    deleted = await repo.delete_user(username)
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail="User not found.")
+
+    return {"message": f"User '{username}' deleted successfully."}

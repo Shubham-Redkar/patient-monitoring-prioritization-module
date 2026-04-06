@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
@@ -32,9 +32,6 @@ const PRIORITY_STYLE = {
   },
 };
 
-// FIX: Run at most `concurrency` predict calls at a time.
-// Previously all N fired simultaneously — each one triggers ML inference + an
-// LLM call, so the backend queued up and the dashboard felt very slow.
 async function fetchWithConcurrency(ids, fetchOne, concurrency = 3) {
   const queue = [...ids];
   const worker = async () => {
@@ -52,9 +49,9 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
-  const authHeaders = { Authorization: `Bearer ${token}` };
 
-  const fetchPatients = async () => {
+  const initialLoad = useCallback(async () => {
+    const authHeaders = { Authorization: `Bearer ${token}` };
     setLoading(true);
     try {
       const res = await fetch(`${BASE}/patients`, { headers: authHeaders });
@@ -65,37 +62,35 @@ export default function Dashboard() {
 
       await fetchWithConcurrency(ids, async (id) => {
         try {
-          const res = await fetch(`${BASE}/patients/${id}/predict?hour=72`, {
+          const r = await fetch(`${BASE}/patients/${id}/predict?hour=72`, {
             headers: authHeaders,
           });
-          if (!res.ok) return;
-          const data = await res.json();
+          if (!r.ok) return;
+          const d = await r.json();
           setPatients((prev) =>
             prev.map((p) =>
               p.id === id
                 ? {
                     id,
-                    priority: data.priority_level,
-                    alert: data.alert?.alert,
-                    alertLevel: data.alert?.level,
+                    priority: d.priority_level,
+                    alert: d.alert?.alert,
+                    alertLevel: d.alert?.level,
                   }
                 : p,
             ),
           );
         } catch {
-          /* ignore */
+          /* ignore individual failures */
         }
       });
     } catch {
       setLoading(false);
     }
-  };
+  }, [token]);
 
   useEffect(() => {
-    fetchPatients();
-    const interval = setInterval(fetchPatients, 20000);
-    return () => clearInterval(interval);
-  }, []);
+    initialLoad();
+  }, [initialLoad]);
 
   const counts = {
     Critical: patients.filter((p) => p.priority === "Critical").length,
@@ -109,6 +104,7 @@ export default function Dashboard() {
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
+      {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
@@ -125,12 +121,20 @@ export default function Dashboard() {
               </span>
             </span>
             {user?.role === "admin" && (
-              <button
-                className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
-                onClick={() => navigate("/data")}
-              >
-                Data Management
-              </button>
+              <>
+                <button
+                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  onClick={() => navigate("/data")}
+                >
+                  Data Management
+                </button>
+                <button
+                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  onClick={() => navigate("/users")}
+                >
+                  User Management
+                </button>
+              </>
             )}
             <button
               className="px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
@@ -142,7 +146,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Body ── */}
       <div className="p-6 max-w-7xl mx-auto">
+        {/* Priority summary row */}
         {!loading && patients.length > 0 && (
           <div className="grid grid-cols-4 gap-4 mb-6">
             {[
@@ -193,6 +199,7 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* Patient cards */}
         {loading ? (
           <div className="text-base text-slate-500">Loading patients…</div>
         ) : (
@@ -203,7 +210,9 @@ export default function Dashboard() {
                 <div
                   key={p.id}
                   onClick={() => navigate(`/patient/${p.id}`)}
-                  className={`bg-white rounded-xl p-5 cursor-pointer border-t-4 border ${style.topBar} ${style.border} hover:-translate-y-1 hover:shadow-md transition-all duration-200 ${p.priority === "Loading" ? "animate-pulse" : ""}`}
+                  className={`bg-white rounded-xl p-5 cursor-pointer border-t-4 border ${style.topBar} ${style.border} hover:-translate-y-1 hover:shadow-md transition-all duration-200 ${
+                    p.priority === "Loading" ? "animate-pulse" : ""
+                  }`}
                 >
                   <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">
                     Patient ID
@@ -220,7 +229,11 @@ export default function Dashboard() {
                   </span>
                   {p.alert && (
                     <p
-                      className={`text-sm font-semibold mt-3 ${p.alertLevel === "CRITICAL" ? "text-red-700" : "text-orange-700"}`}
+                      className={`text-sm font-semibold mt-3 ${
+                        p.alertLevel === "CRITICAL"
+                          ? "text-red-700"
+                          : "text-orange-700"
+                      }`}
                     >
                       {p.alertLevel === "CRITICAL"
                         ? "⚠ CRITICAL ALERT"
