@@ -43,7 +43,7 @@ const AppRoutes = () => {
         path="/"
         element={
           <ProtectedRoute>
-            {user?.role === "nurse" ? <Navigate to="/data" /> : <Dashboard />}
+            <Dashboard />
           </ProtectedRoute>
         }
       />

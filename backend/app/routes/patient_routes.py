@@ -43,7 +43,7 @@ async def list_patients(
 async def get_patient_meta(
     patient_id: int,
     request: Request,
-    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
 ):
     repo = request.app.state.patient_repo
     meta = await repo.get_patient_meta(patient_id)

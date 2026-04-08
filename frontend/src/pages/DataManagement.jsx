@@ -142,7 +142,7 @@ export default function DataManagement() {
                 ({user?.role})
               </span>
             </span>
-            {user?.role === "admin" && (
+            {(user?.role === "admin" || user?.role === "nurse") && (
               <button
                 className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                 onClick={() => navigate("/")}

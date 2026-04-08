@@ -25,12 +25,6 @@ const Login = () => {
     }
   };
 
-  const fillDemo = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-    setError(null);
-  };
-
   return (
     <div
       className="min-h-screen flex items-center justify-center bg-slate-50"
@@ -95,54 +89,6 @@ const Login = () => {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
-
-          {/* Demo credentials */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <p className="text-xs text-slate-400 uppercase tracking-wide mb-3">
-              Demo credentials
-            </p>
-            <div className="space-y-2">
-              {[
-                {
-                  user: "doctor",
-                  pass: "doctor123",
-                  role: "Doctor",
-                  color: "text-green-700 bg-green-50 border-green-200",
-                },
-                {
-                  user: "admin",
-                  pass: "admin123",
-                  role: "Admin",
-                  color: "text-blue-700 bg-blue-50 border-blue-200",
-                },
-                {
-                  user: "nurse",
-                  pass: "nurse123",
-                  role: "Nurse",
-                  color: "text-rose-700 bg-rose-50 border-rose-200",
-                },
-              ].map(({ user, pass, role, color }) => (
-                <button
-                  key={user}
-                  type="button"
-                  onClick={() => fillDemo(user, pass)}
-                  className="w-full flex items-center justify-between px-3 py-2 rounded-lg border border-slate-100 hover:bg-slate-50 transition-colors text-left"
-                >
-                  <span className="text-sm font-mono text-slate-600">
-                    {user} / {pass}
-                  </span>
-                  <span
-                    className={`text-xs font-semibold px-2 py-0.5 rounded-full border ${color}`}
-                  >
-                    {role}
-                  </span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400 mt-3 text-center">
-              Click a row to autofill
-            </p>
-          </div>
         </div>
       </div>
     </div>

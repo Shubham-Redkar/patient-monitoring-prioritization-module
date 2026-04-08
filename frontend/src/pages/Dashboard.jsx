@@ -99,6 +99,8 @@ export default function Dashboard() {
     Normal: patients.filter((p) => p.priority === "Normal").length,
   };
 
+  const isNurse = user?.role === "nurse";
+
   return (
     <div
       className="min-h-screen bg-slate-50"
@@ -120,6 +122,19 @@ export default function Dashboard() {
                 ({user?.role})
               </span>
             </span>
+            {isNurse && (
+              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-rose-50 border border-rose-200 text-rose-700">
+                Read-only
+              </span>
+            )}
+            {isNurse && (
+              <button
+                className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                onClick={() => navigate("/data")}
+              >
+                Data Management
+              </button>
+            )}
             {user?.role === "admin" && (
               <>
                 <button
@@ -209,10 +224,10 @@ export default function Dashboard() {
               return (
                 <div
                   key={p.id}
-                  onClick={() => navigate(`/patient/${p.id}`)}
-                  className={`bg-white rounded-xl p-5 cursor-pointer border-t-4 border ${style.topBar} ${style.border} hover:-translate-y-1 hover:shadow-md transition-all duration-200 ${
+                  onClick={() => !isNurse && navigate(`/patient/${p.id}`)}
+                  className={`bg-white rounded-xl p-5 border-t-4 border ${style.topBar} ${style.border} transition-all duration-200 ${
                     p.priority === "Loading" ? "animate-pulse" : ""
-                  }`}
+                  } ${!isNurse ? "cursor-pointer hover:-translate-y-1 hover:shadow-md" : "cursor-default"}`}
                 >
                   <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">
                     Patient ID
