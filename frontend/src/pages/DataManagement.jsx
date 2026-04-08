@@ -1,6 +1,17 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  LayoutDashboard,
+  Database,
+  Upload,
+  Trash2,
+  FileUp,
+  X,
+  LogOut,
+  CheckCircle,
+  XCircle,
+} from "lucide-react";
 
 const BASE = "http://localhost:8000/api/v1";
 
@@ -15,7 +26,11 @@ function StatusMessage({ msg }) {
           : "bg-green-50 border-green-200 text-green-800"
       }`}
     >
-      <span className="mt-0.5 font-bold">{isError ? "✕" : "✓"}</span>
+      {isError ? (
+        <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      )}
       <span>{msg.text}</span>
     </div>
   );
@@ -127,13 +142,16 @@ export default function DataManagement() {
       {/* Topbar */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              Clinical Data Management
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              Upload or remove patient records
-            </p>
+          <div className="flex items-center gap-2">
+            <Database className="w-5 h-5 text-slate-700" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                Clinical Data Management
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Upload or remove patient records
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-base text-slate-700 font-medium">
@@ -144,16 +162,18 @@ export default function DataManagement() {
             </span>
             {(user?.role === "admin" || user?.role === "nurse") && (
               <button
-                className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                 onClick={() => navigate("/")}
               >
-                ← Dashboard
+                <LayoutDashboard className="w-4 h-4" />
+                Dashboard
               </button>
             )}
             <button
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
               onClick={logout}
             >
+              <LogOut className="w-4 h-4" />
               Sign out
             </button>
           </div>
@@ -166,7 +186,8 @@ export default function DataManagement() {
           {/* ── Upload card ── border-t-4 blue, matching Dashboard card style */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-blue-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Upload className="w-4 h-4 text-blue-500" />
                 Upload Patient Data
               </h2>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -198,7 +219,7 @@ export default function DataManagement() {
                     </div>
                   ) : (
                     <div>
-                      <p className="text-3xl mb-2">📂</p>
+                      <FileUp className="w-10 h-10 text-slate-300 mx-auto mb-2" />
                       <p className="text-base text-slate-600">
                         Click to select a CSV file
                       </p>
@@ -220,8 +241,9 @@ export default function DataManagement() {
                   <button
                     type="submit"
                     disabled={uploading || !file}
-                    className="px-5 py-2.5 bg-slate-900 text-white text-base font-medium rounded-lg hover:bg-slate-700 disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-slate-900 text-white text-base font-medium rounded-lg hover:bg-slate-700 disabled:opacity-40"
                   >
+                    <Upload className="w-4 h-4" />
                     {uploading ? "Uploading…" : "Upload"}
                   </button>
                   {file && (
@@ -233,8 +255,9 @@ export default function DataManagement() {
                         if (fileInputRef.current)
                           fileInputRef.current.value = "";
                       }}
-                      className="px-5 py-2.5 border border-slate-300 text-slate-600 text-base rounded-lg hover:bg-slate-50"
+                      className="flex items-center gap-1.5 px-5 py-2.5 border border-slate-300 text-slate-600 text-base rounded-lg hover:bg-slate-50"
                     >
+                      <X className="w-4 h-4" />
                       Clear
                     </button>
                   )}
@@ -246,7 +269,8 @@ export default function DataManagement() {
           {/* ── Delete card ── border-t-4 red */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-red-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Trash2 className="w-4 h-4 text-red-500" />
                 Delete Patient Records
               </h2>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -272,8 +296,9 @@ export default function DataManagement() {
                   <button
                     type="submit"
                     disabled={deleting || !delPatientId}
-                    className="px-5 py-2.5 bg-red-600 text-white text-base font-medium rounded-lg hover:bg-red-700 disabled:opacity-40"
+                    className="flex items-center gap-1.5 px-5 py-2.5 bg-red-600 text-white text-base font-medium rounded-lg hover:bg-red-700 disabled:opacity-40"
                   >
+                    <Trash2 className="w-4 h-4" />
                     {deleting ? "Deleting…" : "Delete Patient"}
                   </button>
                   <p className="text-sm text-slate-400 mt-4">

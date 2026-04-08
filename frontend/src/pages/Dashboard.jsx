@@ -1,6 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  LayoutDashboard,
+  Database,
+  Users,
+  LogOut,
+  Eye,
+  AlertTriangle,
+  RefreshCw,
+} from "lucide-react";
 
 const BASE = "http://localhost:8000/api/v1";
 
@@ -109,11 +118,16 @@ export default function Dashboard() {
       {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              Clinical Decision Support
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Overview Dashboard</p>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-slate-700" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                Clinical Decision Support
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Overview Dashboard
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-base text-slate-700 font-medium">
@@ -123,38 +137,43 @@ export default function Dashboard() {
               </span>
             </span>
             {isNurse && (
-              <span className="px-3 py-1 text-xs font-semibold rounded-full bg-rose-50 border border-rose-200 text-rose-700">
+              <span className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full bg-rose-50 border border-rose-200 text-rose-700">
+                <Eye className="w-3 h-3" />
                 Read-only
               </span>
             )}
             {isNurse && (
               <button
-                className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                 onClick={() => navigate("/data")}
               >
+                <Database className="w-4 h-4" />
                 Data Management
               </button>
             )}
             {user?.role === "admin" && (
               <>
                 <button
-                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                   onClick={() => navigate("/data")}
                 >
+                  <Database className="w-4 h-4" />
                   Data Management
                 </button>
                 <button
-                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                   onClick={() => navigate("/users")}
                 >
+                  <Users className="w-4 h-4" />
                   User Management
                 </button>
               </>
             )}
             <button
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
               onClick={logout}
             >
+              <LogOut className="w-4 h-4" />
               Sign out
             </button>
           </div>
@@ -216,7 +235,10 @@ export default function Dashboard() {
 
         {/* Patient cards */}
         {loading ? (
-          <div className="text-base text-slate-500">Loading patients…</div>
+          <div className="flex items-center gap-2 text-base text-slate-500">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            Loading patients…
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {patients.map((p) => {
@@ -244,15 +266,16 @@ export default function Dashboard() {
                   </span>
                   {p.alert && (
                     <p
-                      className={`text-sm font-semibold mt-3 ${
+                      className={`flex items-center gap-1 text-sm font-semibold mt-3 ${
                         p.alertLevel === "CRITICAL"
                           ? "text-red-700"
                           : "text-orange-700"
                       }`}
                     >
+                      <AlertTriangle className="w-4 h-4" />
                       {p.alertLevel === "CRITICAL"
-                        ? "⚠ CRITICAL ALERT"
-                        : "⚠ HIGH RISK"}
+                        ? "CRITICAL ALERT"
+                        : "HIGH RISK"}
                     </p>
                   )}
                 </div>

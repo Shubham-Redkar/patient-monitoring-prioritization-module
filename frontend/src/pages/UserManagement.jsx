@@ -1,6 +1,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  LayoutDashboard,
+  LogOut,
+  UserCircle,
+  UserPlus,
+  Users,
+  Trash2,
+  RefreshCw,
+  CheckCircle,
+  XCircle,
+  ShieldCheck,
+  Stethoscope,
+  HeartPulse,
+} from "lucide-react";
 
 const BASE = "http://localhost:8000/api/v1";
 
@@ -8,6 +22,12 @@ const ROLE_BADGE = {
   admin: "bg-purple-100 text-purple-800 border-purple-200",
   doctor: "bg-blue-100 text-blue-800 border-blue-200",
   nurse: "bg-green-100 text-green-800 border-green-200",
+};
+
+const ROLE_ICON = {
+  admin: <ShieldCheck className="w-3 h-3" />,
+  doctor: <Stethoscope className="w-3 h-3" />,
+  nurse: <HeartPulse className="w-3 h-3" />,
 };
 
 function StatusMessage({ msg }) {
@@ -21,7 +41,11 @@ function StatusMessage({ msg }) {
           : "bg-green-50 border-green-200 text-green-800"
       }`}
     >
-      <span className="font-bold">{isError ? "✕" : "✓"}</span>
+      {isError ? (
+        <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      ) : (
+        <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
+      )}
       <span>{msg.text}</span>
     </div>
   );
@@ -134,15 +158,17 @@ export default function UserManagement() {
               </span>
             </span>
             <button
-              className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+              className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
               onClick={() => navigate("/")}
             >
-              ← Dashboard
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
             </button>
             <button
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
               onClick={logout}
             >
+              <LogOut className="w-4 h-4" />
               Sign out
             </button>
           </div>
@@ -154,7 +180,8 @@ export default function UserManagement() {
           {/* ── Add User Card ── */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-blue-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <UserPlus className="w-4 h-4 text-blue-500" />
                 Add New User
               </h2>
               <p className="text-sm text-slate-500 mt-0.5">
@@ -211,8 +238,13 @@ export default function UserManagement() {
                 <button
                   onClick={handleCreate}
                   disabled={creating || !form.username || !form.password}
-                  className="px-5 py-2.5 bg-slate-900 text-white text-base font-medium rounded-lg hover:bg-slate-700 disabled:opacity-40"
+                  className="flex items-center justify-center gap-1.5 px-5 py-2.5 bg-slate-900 text-white text-base font-medium rounded-lg hover:bg-slate-700 disabled:opacity-40"
                 >
+                  {creating ? (
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <UserPlus className="w-4 h-4" />
+                  )}
                   {creating ? "Creating…" : "Create User"}
                 </button>
               </div>
@@ -222,9 +254,10 @@ export default function UserManagement() {
           {/* ── Users List Card ── */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-slate-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="text-base font-semibold text-slate-900">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Users className="w-4 h-4 text-slate-500" />
                 All Users
-                <span className="ml-2 text-sm font-normal text-slate-400">
+                <span className="text-sm font-normal text-slate-400">
                   ({users.length})
                 </span>
               </h2>
@@ -236,7 +269,7 @@ export default function UserManagement() {
               <StatusMessage msg={listMsg} />
               {loadingUsers ? (
                 <div className="flex items-center gap-2 text-sm text-slate-500 py-4">
-                  <div className="w-4 h-4 border-2 border-slate-200 border-t-slate-500 rounded-full animate-spin" />
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                   Loading users…
                 </div>
               ) : users.length === 0 ? (
@@ -249,8 +282,8 @@ export default function UserManagement() {
                       className="flex items-center justify-between py-3 gap-3"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-sm font-bold text-slate-600 uppercase">
-                          {u.username[0]}
+                        <div className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                          <UserCircle className="w-5 h-5" />
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-900">
@@ -265,16 +298,22 @@ export default function UserManagement() {
                       </div>
                       <div className="flex items-center gap-3">
                         <span
-                          className={`text-xs font-semibold px-2.5 py-1 rounded-full border capitalize ${ROLE_BADGE[u.role] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
+                          className={`flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full border capitalize ${ROLE_BADGE[u.role] ?? "bg-slate-100 text-slate-600 border-slate-200"}`}
                         >
+                          {ROLE_ICON[u.role]}
                           {u.role}
                         </span>
                         {u.username !== user?.username && (
                           <button
                             onClick={() => handleDelete(u.username)}
                             disabled={deletingUsername === u.username}
-                            className="text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40"
+                            className="flex items-center gap-1 text-sm px-3 py-1.5 border border-red-200 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-40"
                           >
+                            {deletingUsername === u.username ? (
+                              <RefreshCw className="w-3 h-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3 h-3" />
+                            )}
                             {deletingUsername === u.username
                               ? "Deleting…"
                               : "Delete"}
