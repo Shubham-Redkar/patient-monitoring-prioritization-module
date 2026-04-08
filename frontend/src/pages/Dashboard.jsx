@@ -8,6 +8,7 @@ import {
   LogOut,
   Eye,
   AlertTriangle,
+  CheckCircle,
   RefreshCw,
 } from "lucide-react";
 
@@ -82,8 +83,9 @@ export default function Dashboard() {
                 ? {
                     id,
                     priority: d.priority_level,
-                    alert: d.alert?.alert,
+                    alert: d.alert?.alert && !d.alert?.acknowledged,
                     alertLevel: d.alert?.level,
+                    acknowledged: d.alert?.alert && d.alert?.acknowledged,
                   }
                 : p,
             ),
@@ -276,6 +278,12 @@ export default function Dashboard() {
                       {p.alertLevel === "CRITICAL"
                         ? "CRITICAL ALERT"
                         : "HIGH RISK"}
+                    </p>
+                  )}
+                  {p.acknowledged && (
+                    <p className="flex items-center gap-1 text-sm font-semibold mt-3 text-green-700">
+                      <CheckCircle className="w-4 h-4" />
+                      Acknowledged
                     </p>
                   )}
                 </div>

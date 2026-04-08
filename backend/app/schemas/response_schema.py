@@ -6,6 +6,9 @@ class AlertInfo(BaseModel):
     alert: bool
     level: Optional[str] = None
     message: Optional[str] = None
+    acknowledged: bool = False
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[str] = None
 
 
 class PredictionResponse(BaseModel):

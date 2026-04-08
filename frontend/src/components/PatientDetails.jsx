@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   ArrowLeft,
   Brain,
+  CheckCircle,
   ChevronDown,
   ChevronUp,
   Clock,
@@ -88,8 +89,6 @@ const PRIORITY_COLORS = {
   },
 };
 
-// ── Vital Status card border driven by sustained_instability ────────────────
-// sustained_instability=1 → orange ring; anomaly only → red ring; clean → green
 function vitalCardBorder(anomalyFlag, sustainedInstability) {
   if (sustainedInstability) return "border-orange-300 ring-1 ring-orange-200";
   if (anomalyFlag) return "border-red-300";
@@ -132,6 +131,25 @@ const STATUS_STYLE = {
   HIGH: "bg-red-50 text-red-700 border-red-200",
   LOW: "bg-blue-50 text-blue-700 border-blue-200",
   NORMAL: "bg-green-50 text-green-700 border-green-200",
+};
+
+const formatIST = (dateStr) => {
+  if (!dateStr) return "—";
+
+  const date = new Date(dateStr);
+
+  if (isNaN(date.getTime())) return "Invalid time";
+
+  return date.toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
 };
 
 // ── Signals card: renders top lab + vital contributing factors ───────────────
@@ -342,6 +360,7 @@ export default function PatientDetails() {
   const [error, setError] = useState(null);
 
   const [override, setOverride] = useState(null);
+  const [acknowledging, setAcknowledging] = useState(false);
   const [overrideForm, setOverrideForm] = useState({
     priority: "Critical",
     reason: "",
@@ -499,6 +518,23 @@ export default function PatientDetails() {
   const labCurrentLabel = slicedLabs?.at(-1)
     ? `${slicedLabs.at(-1).hour}h`
     : null;
+
+  const handleAcknowledge = async () => {
+    setAcknowledging(true);
+    try {
+      const res = await fetch(`${BASE}/patients/${patientId}/acknowledge`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to acknowledge");
+      // Refresh prediction so alert.acknowledged=true comes back from the server
+      await fetchPrediction(patientId, hourRef.current);
+    } catch {
+      /* ignore — prediction poll will sync state */
+    } finally {
+      setAcknowledging(false);
+    }
+  };
 
   const handleSaveOverride = async () => {
     if (!overrideForm.reason.trim()) {
@@ -677,7 +713,7 @@ export default function PatientDetails() {
               )}
               {override.set_at && (
                 <p className="text-xs text-amber-500 mt-1">
-                  Set at: {new Date(override.set_at).toLocaleString()}
+                  Set at: {formatIST(override.set_at)}
                 </p>
               )}
             </div>
@@ -748,49 +784,93 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ── Alert ──────────────────────────────────────────────────────── */}
-        {/* Fix: explicit === "HIGH" check instead of implicit else ──────── */}
-        {prediction?.alert?.alert && (
-          <div
-            className={`rounded-xl border p-4 mb-5 ${
-              prediction.alert.level === "CRITICAL"
-                ? "bg-red-50 border-red-300"
-                : prediction.alert.level === "HIGH"
-                  ? "bg-orange-50 border-orange-300"
-                  : "bg-yellow-50 border-yellow-300"
-            }`}
-          >
-            <p
-              className={`text-base font-bold flex items-center gap-2 ${
-                prediction.alert.level === "CRITICAL"
-                  ? "text-red-800"
-                  : prediction.alert.level === "HIGH"
-                    ? "text-orange-800"
-                    : "text-yellow-800"
-              }`}
-            >
-              <TriangleAlert size={16} />
-              {prediction.alert.level === "CRITICAL"
-                ? "CRITICAL ALERT"
-                : prediction.alert.level === "HIGH"
-                  ? "HIGH RISK ALERT"
-                  : "ALERT"}
-            </p>
-            {prediction.alert.message && (
-              <p
-                className={`text-sm mt-1 ${
+        {/* ── Alert / Acknowledged banner ─────────────────────────────────── */}
+        {prediction?.alert?.alert &&
+          (prediction.alert.acknowledged ? (
+            /* Acknowledged: calm green pill — persists across polls and slider moves */
+            <div className="rounded-xl border border-green-200 bg-green-50 p-4 mb-5 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-green-800">
+                  <CheckCircle size={15} className="text-green-600" />
+                  Alert Acknowledged
+                </span>
+                {prediction.alert.acknowledged_by && (
+                  <span className="text-sm text-green-700">
+                    — by <strong>{prediction.alert.acknowledged_by}</strong>
+                    {prediction.alert.acknowledged_at && (
+                      <span className="ml-1 font-normal text-green-600">
+                        at {formatIST(prediction.alert.acknowledged_at)}
+                      </span>
+                    )}
+                  </span>
+                )}
+              </div>
+              <span
+                className={`shrink-0 text-xs font-semibold px-2.5 py-1 rounded-full border ${
                   prediction.alert.level === "CRITICAL"
-                    ? "text-red-700"
-                    : prediction.alert.level === "HIGH"
-                      ? "text-orange-700"
-                      : "text-yellow-700"
+                    ? "bg-red-50 text-red-700 border-red-200"
+                    : "bg-orange-50 text-orange-700 border-orange-200"
                 }`}
               >
-                {prediction.alert.message}
-              </p>
-            )}
-          </div>
-        )}
+                {prediction.alert.level}
+              </span>
+            </div>
+          ) : (
+            /* Active alert: banner with Acknowledge button */
+            <div
+              className={`rounded-xl border p-4 mb-5 flex items-start justify-between gap-4 ${
+                prediction.alert.level === "CRITICAL"
+                  ? "bg-red-50 border-red-300"
+                  : prediction.alert.level === "HIGH"
+                    ? "bg-orange-50 border-orange-300"
+                    : "bg-yellow-50 border-yellow-300"
+              }`}
+            >
+              <div>
+                <p
+                  className={`text-base font-bold flex items-center gap-2 ${
+                    prediction.alert.level === "CRITICAL"
+                      ? "text-red-800"
+                      : prediction.alert.level === "HIGH"
+                        ? "text-orange-800"
+                        : "text-yellow-800"
+                  }`}
+                >
+                  <TriangleAlert size={16} />
+                  {prediction.alert.level === "CRITICAL"
+                    ? "CRITICAL ALERT"
+                    : prediction.alert.level === "HIGH"
+                      ? "HIGH RISK ALERT"
+                      : "ALERT"}
+                </p>
+                {prediction.alert.message && (
+                  <p
+                    className={`text-sm mt-1 ${
+                      prediction.alert.level === "CRITICAL"
+                        ? "text-red-700"
+                        : prediction.alert.level === "HIGH"
+                          ? "text-orange-700"
+                          : "text-yellow-700"
+                    }`}
+                  >
+                    {prediction.alert.message}
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={handleAcknowledge}
+                disabled={acknowledging}
+                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
+                  prediction.alert.level === "CRITICAL"
+                    ? "border-red-400 text-red-800 hover:bg-red-100"
+                    : "border-orange-400 text-orange-800 hover:bg-orange-100"
+                }`}
+              >
+                <ShieldAlert size={14} />
+                {acknowledging ? "Acknowledging…" : "Acknowledge"}
+              </button>
+            </div>
+          ))}
 
         {/* ── Manual Override Panel ───────────────────────────────────────── */}
         {canOverride && (
