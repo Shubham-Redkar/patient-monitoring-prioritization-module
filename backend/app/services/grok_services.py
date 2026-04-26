@@ -1,13 +1,12 @@
 import os
 from collections import OrderedDict
 from groq import Groq
-from dotenv import load_dotenv
+from core.config import get_settings
 
-load_dotenv()
 
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+def _get_client() -> Groq:
+    return Groq(api_key=get_settings().groq_api_key)
 
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 _CACHE_MAX = 256
 _explanation_cache: OrderedDict[tuple, str] = OrderedDict()
@@ -23,7 +22,6 @@ def _signal_fingerprint(signals: dict) -> str:
 def _cache_get(key: tuple) -> str | None:
     if key not in _explanation_cache:
         return None
-    # Move to end (most-recently-used)
     _explanation_cache.move_to_end(key)
     return _explanation_cache[key]
 
@@ -33,12 +31,10 @@ def _cache_set(key: tuple, value: str) -> None:
         _explanation_cache.move_to_end(key)
     _explanation_cache[key] = value
     if len(_explanation_cache) > _CACHE_MAX:
-        # Evict least-recently-used (front of OrderedDict)
         _explanation_cache.popitem(last=False)
 
 
 def generate_explanation(signals, patient_id=None, priority=None):
-    # Build cache key — fall back to no caching if caller doesn't supply ids
     cache_key = None
     if patient_id is not None and priority is not None:
         cache_key = (patient_id, priority, _signal_fingerprint(signals))
@@ -46,7 +42,6 @@ def generate_explanation(signals, patient_id=None, priority=None):
         if cached is not None:
             return cached
 
-    # Use LLM-specific signals (no ML jargon) when available, fall back to UI signals
     lab = signals.get("lab_llm") or signals.get("lab", [])
     vitals = signals.get("vitals_llm") or signals.get("vitals", [])
     priority_label = signals.get("priority", priority or "Unknown")
@@ -77,8 +72,9 @@ Write exactly 2 sentences for the treating clinician:
 Use plain clinical language. Reference actual values. Do not mention algorithms, models, scores, or statistical methods. Maximum 80 words. Always complete both sentences fully."""
 
     try:
-        response = client.chat.completions.create(
-            model=GROQ_MODEL,
+        s = get_settings()
+        response = _get_client().chat.completions.create(
+            model=s.groq_model,
             messages=[
                 {
                     "role": "system",
@@ -96,7 +92,8 @@ Use plain clinical language. Reference actual values. Do not mention algorithms,
             temperature=0.1,
             max_tokens=200,
         )
-        result = response.choices[0].message.content.strip()
+        content = response.choices[0].message.content
+        result = content.strip() if content is not None else ""
 
         if cache_key is not None:
             _cache_set(cache_key, result)

@@ -2,7 +2,6 @@ from fastapi import APIRouter, UploadFile, File, Request, HTTPException, Depends
 import pandas as pd
 import io
 from pydantic import ValidationError
-
 from schemas.user_schema import UserResponse
 from schemas.vital_schema import VitalInput
 from schemas.lab_schema import LabInput
@@ -152,9 +151,6 @@ async def delete_patient_data(
             status_code=404, detail="Patient not found or already deleted"
         )
 
-    # FIX: deleting a patient left their manual_priority override in patient_meta,
-    # which would reappear if a new patient was ever assigned the same ID.
-    # Now we clean up the meta document atomically with the readings deletion.
     await repo.meta_col.delete_one({"patient_id": patient_id})
 
     return {

@@ -6,6 +6,9 @@ class AlertInfo(BaseModel):
     alert: bool
     level: Optional[str] = None
     message: Optional[str] = None
+    acknowledged: bool = False
+    acknowledged_by: Optional[str] = None
+    acknowledged_at: Optional[str] = None
 
 
 class PredictionResponse(BaseModel):
@@ -22,7 +25,6 @@ class PredictionResponse(BaseModel):
         ..., description="Instability over rolling window"
     )
 
-    # Fixed: removed "Low", added "Normal" to match PriorityService output
     priority_level: Literal["Normal", "Medium", "High", "Critical"] = Field(
         ..., description="Final patient priority level"
     )

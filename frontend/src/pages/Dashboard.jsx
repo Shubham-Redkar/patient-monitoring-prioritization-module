@@ -1,6 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import {
+  LayoutDashboard,
+  Database,
+  Users,
+  LogOut,
+  Eye,
+  AlertTriangle,
+  CheckCircle,
+  RefreshCw,
+} from "lucide-react";
 
 const BASE = "http://localhost:8000/api/v1";
 
@@ -73,8 +83,9 @@ export default function Dashboard() {
                 ? {
                     id,
                     priority: d.priority_level,
-                    alert: d.alert?.alert,
+                    alert: d.alert?.alert && !d.alert?.acknowledged,
                     alertLevel: d.alert?.level,
+                    acknowledged: d.alert?.alert && d.alert?.acknowledged,
                   }
                 : p,
             ),
@@ -99,56 +110,78 @@ export default function Dashboard() {
     Normal: patients.filter((p) => p.priority === "Normal").length,
   };
 
+  const isNurse = user?.role === "nurse";
+
   return (
     <div
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div>
-            <h1 className="text-xl font-bold text-slate-900">
-              Clinical Decision Support
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">Overview Dashboard</p>
+          <div className="flex items-center gap-2">
+            <LayoutDashboard className="w-5 h-5 text-slate-700" />
+            <div>
+              <h1 className="text-xl font-bold text-slate-900">
+                Clinical Decision Support
+              </h1>
+              <p className="text-sm text-slate-500 mt-0.5">
+                Overview Dashboard
+              </p>
+            </div>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-base text-slate-700 font-medium">
-              {user?.username}
+              {user?.full_name || user?.username}
               <span className="ml-2 text-sm text-slate-400 capitalize">
                 ({user?.role})
               </span>
             </span>
+            {isNurse && (
+              <span className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full bg-rose-50 border border-rose-200 text-rose-700">
+                <Eye className="w-3 h-3" />
+                Read-only
+              </span>
+            )}
+            {isNurse && (
+              <button
+                className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                onClick={() => navigate("/data")}
+              >
+                <Database className="w-4 h-4" />
+                Data Management
+              </button>
+            )}
             {user?.role === "admin" && (
               <>
                 <button
-                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                   onClick={() => navigate("/data")}
                 >
+                  <Database className="w-4 h-4" />
                   Data Management
                 </button>
                 <button
-                  className="px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
+                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
                   onClick={() => navigate("/users")}
                 >
+                  <Users className="w-4 h-4" />
                   User Management
                 </button>
               </>
             )}
             <button
-              className="px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
+              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
               onClick={logout}
             >
+              <LogOut className="w-4 h-4" />
               Sign out
             </button>
           </div>
         </div>
       </div>
 
-      {/* ── Body ── */}
       <div className="p-6 max-w-7xl mx-auto">
-        {/* Priority summary row */}
         {!loading && patients.length > 0 && (
           <div className="grid grid-cols-4 gap-4 mb-6">
             {[
@@ -199,9 +232,11 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Patient cards */}
         {loading ? (
-          <div className="text-base text-slate-500">Loading patients…</div>
+          <div className="flex items-center gap-2 text-base text-slate-500">
+            <RefreshCw className="w-4 h-4 animate-spin" />
+            Loading patients…
+          </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
             {patients.map((p) => {
@@ -209,10 +244,10 @@ export default function Dashboard() {
               return (
                 <div
                   key={p.id}
-                  onClick={() => navigate(`/patient/${p.id}`)}
-                  className={`bg-white rounded-xl p-5 cursor-pointer border-t-4 border ${style.topBar} ${style.border} hover:-translate-y-1 hover:shadow-md transition-all duration-200 ${
+                  onClick={() => !isNurse && navigate(`/patient/${p.id}`)}
+                  className={`bg-white rounded-xl p-5 border-t-4 border ${style.topBar} ${style.border} transition-all duration-200 ${
                     p.priority === "Loading" ? "animate-pulse" : ""
-                  }`}
+                  } ${!isNurse ? "cursor-pointer hover:-translate-y-1 hover:shadow-md" : "cursor-default"}`}
                 >
                   <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">
                     Patient ID
@@ -229,15 +264,22 @@ export default function Dashboard() {
                   </span>
                   {p.alert && (
                     <p
-                      className={`text-sm font-semibold mt-3 ${
+                      className={`flex items-center gap-1 text-sm font-semibold mt-3 ${
                         p.alertLevel === "CRITICAL"
                           ? "text-red-700"
                           : "text-orange-700"
                       }`}
                     >
+                      <AlertTriangle className="w-4 h-4" />
                       {p.alertLevel === "CRITICAL"
-                        ? "⚠ CRITICAL ALERT"
-                        : "⚠ HIGH RISK"}
+                        ? "CRITICAL ALERT"
+                        : "HIGH RISK"}
+                    </p>
+                  )}
+                  {p.acknowledged && (
+                    <p className="flex items-center gap-1 text-sm font-semibold mt-3 text-green-700">
+                      <CheckCircle className="w-4 h-4" />
+                      Acknowledged
                     </p>
                   )}
                 </div>

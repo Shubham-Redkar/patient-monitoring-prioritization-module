@@ -14,7 +14,6 @@ class PatientRepository:
     def meta_col(self):
         return get_db().patient_meta
 
-    # Insert or update a reading
     async def upsert_reading(
         self,
         patient_id: int,
@@ -41,7 +40,6 @@ class PatientRepository:
             upsert=True,
         )
 
-    # Bulk insert for seeding data
     async def bulk_upsert_readings(self, readings: list[dict]):
 
         if not readings:
@@ -61,7 +59,6 @@ class PatientRepository:
 
         await self.col.bulk_write(ops, ordered=False)
 
-    # Fetch history between hours
     async def get_history(
         self,
         patient_id: int,
@@ -79,7 +76,6 @@ class PatientRepository:
 
         return await cursor.to_list(length=None)
 
-    # Latest reading for a patient
     async def get_latest_reading(self, patient_id: int) -> Optional[dict]:
 
         return await self.col.find_one(
@@ -88,25 +84,41 @@ class PatientRepository:
             sort=[("hour_from_admission", -1)],
         )
 
-    # List all patients
     async def list_patients(self) -> list[int]:
 
         return await self.col.distinct("patient_id")
 
     async def acknowledge_alert(self, patient_id, doctor_name):
-
-        result = await self.col.update_one(
+        """
+        Persist the acknowledgement in patient_meta so it survives across
+        multiple readings / polling cycles.
+        """
+        result = await self.meta_col.update_one(
             {"patient_id": patient_id},
             {
                 "$set": {
-                    "alert.acknowledged": True,
-                    "alert.acknowledged_by": doctor_name,
-                    "alert.acknowledged_at": datetime.now(timezone.utc),
+                    "alert_acknowledged": True,
+                    "alert_acknowledged_by": doctor_name,
+                    "alert_acknowledged_at": datetime.now(timezone.utc),
+                }
+            },
+            upsert=True,
+        )
+
+        return result.modified_count or result.upserted_id is not None
+
+    async def clear_alert_acknowledgement(self, patient_id):
+        """Remove acknowledgement so fresh alerts are shown again."""
+        await self.meta_col.update_one(
+            {"patient_id": patient_id},
+            {
+                "$unset": {
+                    "alert_acknowledged": "",
+                    "alert_acknowledged_by": "",
+                    "alert_acknowledged_at": "",
                 }
             },
         )
-
-        return result.modified_count
 
     async def override_patient_priority(
         self, patient_id: int, priority: str, reason: str, doctor_name: str
@@ -125,4 +137,4 @@ class PatientRepository:
         )
 
     async def get_patient_meta(self, patient_id: int):
-        return await self.meta_col.find_one({"patient_id": patient_id})
+        return await self.meta_col.find_one({"patient_id": patient_id}, {"_id": 0})

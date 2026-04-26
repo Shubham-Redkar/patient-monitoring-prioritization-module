@@ -1,13 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, DESCENDING
-from dotenv import load_dotenv
-import os
+from core.config import get_settings
 import certifi
 
-load_dotenv()
-
-MONGO_URI = os.getenv("MONGO_URI")
-DB_NAME = os.getenv("MONGO_DB")
 
 _client: AsyncIOMotorClient | None = None
 
@@ -16,7 +11,7 @@ def get_client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
         _client = AsyncIOMotorClient(
-            MONGO_URI,
+            get_settings().mongo_uri,
             tls=True,
             tlsCAFile=certifi.where(),
         )
@@ -24,7 +19,7 @@ def get_client() -> AsyncIOMotorClient:
 
 
 def get_db():
-    return get_client()[DB_NAME]
+    return get_client()[get_settings().mongo_db]
 
 
 async def init_indexes():
@@ -46,10 +41,6 @@ async def init_indexes():
         name="anomaly_patient",
     )
 
-    # FIX: users collection had no index on username — every login and /me check
-    # performed a full collection scan. unique=True also prevents duplicate usernames
-    # at the database layer (previously only the app layer checked for duplicates,
-    # which had a race-condition window).
     await db.users.create_index(
         [("username", ASCENDING)],
         unique=True,

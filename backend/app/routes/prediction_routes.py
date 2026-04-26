@@ -1,11 +1,10 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
+from datetime import datetime, timezone
 import pandas as pd
-
 from utils.vital_features import compute_vital_features
 from utils.lab_features import compute_lab_features
 from utils.alert_logic import determine_alert
 from utils.explanability import extract_signals
-
 from services.priority_service import PriorityService
 from services.grok_services import generate_explanation
 from schemas.response_schema import PredictionResponse
@@ -17,12 +16,23 @@ router = APIRouter(prefix="/api/v1", tags=["prediction"])
 priority_service = PriorityService()
 
 
+def to_iso(dt):
+    """
+    Safely convert datetime to ISO string with timezone.
+    If already a string or None, return as-is.
+    """
+    if isinstance(dt, datetime):
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt.isoformat()
+    return dt
+
+
 @router.get("/patients/{patient_id}/predict", response_model=PredictionResponse)
 async def predict(
     patient_id: int,
     hour: int,
     request: Request,
-    # FIX: was completely unauthenticated — any caller could run predictions
     current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
 ):
 
@@ -76,14 +86,29 @@ async def predict(
 
     priority = priority_service.compute_priority(lab_label, sustained_instability)
 
-    patient_meta = await repo.get_patient_meta(patient_id)
-    if patient_meta and patient_meta.get("manual_priority"):
+    patient_meta = await repo.get_patient_meta(patient_id) or {}
+
+    patient_meta["alert_acknowledged_at"] = to_iso(
+        patient_meta.get("alert_acknowledged_at")
+    )
+    patient_meta["manual_priority_at"] = to_iso(patient_meta.get("manual_priority_at"))
+
+    if patient_meta.get("manual_priority"):
         priority = patient_meta["manual_priority"]
 
     previous = await repo.get_latest_reading(patient_id)
     previous_priority = previous.get("priority_level") if previous else None
 
     alert = determine_alert(priority, previous_priority)
+
+    if patient_meta.get("alert_acknowledged"):
+        alert["acknowledged"] = True
+        alert["acknowledged_by"] = patient_meta.get("alert_acknowledged_by")
+        alert["acknowledged_at"] = patient_meta.get("alert_acknowledged_at")
+    else:
+        alert["acknowledged"] = False
+        alert["acknowledged_by"] = None
+        alert["acknowledged_at"] = None
 
     signals = extract_signals(
         vital_df,
@@ -94,8 +119,6 @@ async def predict(
     )
 
     explanation = None
-    # Only call Grok for High/Critical patients — Normal and Medium don't need
-    # an LLM explanation and skipping them saves the majority of token usage.
     if priority in ("Critical", "High") and (
         signals.get("lab") or signals.get("vitals")
     ):

@@ -11,8 +11,6 @@ class ReadingBase(BaseModel):
     hour_from_admission: int
 
 
-# Bounds are pulled directly from FEATURE_META so validation and the
-# clinical display ranges are always in sync.
 _hr = FEATURE_META["heart_rate"]
 _rr = FEATURE_META["respiratory_rate"]
 _spo2 = FEATURE_META["spo2_pct"]
