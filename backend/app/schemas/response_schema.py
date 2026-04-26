@@ -25,7 +25,6 @@ class PredictionResponse(BaseModel):
         ..., description="Instability over rolling window"
     )
 
-    # Fixed: removed "Low", added "Normal" to match PriorityService output
     priority_level: Literal["Normal", "Medium", "High", "Critical"] = Field(
         ..., description="Final patient priority level"
     )

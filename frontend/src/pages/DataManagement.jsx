@@ -37,12 +37,8 @@ function StatusMessage({ msg }) {
 }
 
 export default function DataManagement() {
-  // FIX: was reading token via localStorage.getItem("token") on every request
-  // instead of consuming it from the auth context. Using the context value is
-  // consistent with every other component and avoids stale-token edge cases.
   const { user, token, logout } = useAuth();
   const navigate = useNavigate();
-
   const [file, setFile] = useState(null);
   const [uploadMsg, setUploadMsg] = useState(null);
   const [delPatientId, setDelPatientId] = useState("");
@@ -139,7 +135,6 @@ export default function DataManagement() {
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* Topbar */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
@@ -180,10 +175,8 @@ export default function DataManagement() {
         </div>
       </div>
 
-      {/* Cards — same padding and grid as Dashboard, equal height columns */}
       <div className="p-6 max-w-7xl mx-auto">
         <div className="grid md:grid-cols-2 gap-6 items-start">
-          {/* ── Upload card ── border-t-4 blue, matching Dashboard card style */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-blue-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
@@ -199,7 +192,6 @@ export default function DataManagement() {
               <StatusMessage msg={uploadMsg} />
 
               <form onSubmit={handleUpload} className="flex flex-col">
-                {/* Drop zone grows to fill remaining space */}
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   className={`cursor-pointer rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors flex flex-col items-center justify-center min-h-40 ${
@@ -266,7 +258,6 @@ export default function DataManagement() {
             </div>
           </div>
 
-          {/* ── Delete card ── border-t-4 red */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-red-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">

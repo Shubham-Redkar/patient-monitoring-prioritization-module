@@ -35,10 +35,8 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Login */}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
 
-      {/* Dashboard */}
       <Route
         path="/"
         element={
@@ -48,7 +46,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Patient Details */}
       <Route
         path="/patient/:patientId"
         element={
@@ -67,7 +64,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Data Management */}
       <Route
         path="/data"
         element={
@@ -77,7 +73,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

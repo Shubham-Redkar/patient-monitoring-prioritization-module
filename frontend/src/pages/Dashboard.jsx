@@ -117,7 +117,6 @@ export default function Dashboard() {
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* ── Header ── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-2">
@@ -133,7 +132,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-base text-slate-700 font-medium">
-              {user?.username}
+              {user?.full_name || user?.username}
               <span className="ml-2 text-sm text-slate-400 capitalize">
                 ({user?.role})
               </span>
@@ -182,9 +181,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Body ── */}
       <div className="p-6 max-w-7xl mx-auto">
-        {/* Priority summary row */}
         {!loading && patients.length > 0 && (
           <div className="grid grid-cols-4 gap-4 mb-6">
             {[
@@ -235,7 +232,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Patient cards */}
         {loading ? (
           <div className="flex items-center gap-2 text-base text-slate-500">
             <RefreshCw className="w-4 h-4 animate-spin" />

@@ -29,11 +29,9 @@ export const AuthProvider = ({ children }) => {
 
         if (!res.ok) throw new Error("Invalid token");
 
-        // Optional: you can refresh user data from backend
         const data = await res.json();
         setUser(data.user || user);
       } catch (err) {
-        // Token invalid → clear everything
         setUser(null);
         setToken(null);
         localStorage.removeItem("token");
@@ -75,14 +73,12 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
-  // ✅ Logout
   const logout = () => {
     setUser(null);
     setToken(null);
     localStorage.removeItem("token");
     localStorage.removeItem("user");
 
-    // Optional redirect
     window.location.href = "/login";
   };
 

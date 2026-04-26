@@ -1,20 +1,11 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
-import os
 import jwt
 import bcrypt
 from fastapi import HTTPException, status, Depends, Request
 from fastapi.security import OAuth2PasswordBearer
 from schemas.user_schema import UserResponse
-from dotenv import load_dotenv
-
-load_dotenv()
-
-SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-if not SECRET_KEY:
-    raise RuntimeError("JWT_SECRET_KEY env var is not set")
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 60 * 24  # 1 day
+from core.config import get_settings
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
 
@@ -41,7 +32,8 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     else:
         expire = datetime.now(timezone.utc) + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    s = get_settings()
+    encoded_jwt = jwt.encode(to_encode, s.jwt_secret_key, algorithm=s.jwt_algorithm)
     return encoded_jwt
 
 
@@ -52,12 +44,14 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        role: str = payload.get("role")
+        s = get_settings()
+        payload = jwt.decode(token, s.jwt_secret_key, algorithms=[s.jwt_algorithm])
+        username: str | None = payload.get("sub")
+        role: str | None = payload.get("role")
+        full_name: str = payload.get("full_name") or ""
         if username is None or role is None:
             raise credentials_exception
-        token_data = {"username": username, "role": role}
+        token_data = {"username": username, "role": role, "full_name": full_name}
     except jwt.InvalidTokenError:
         raise credentials_exception
 
@@ -65,7 +59,11 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     user = await repo.get_user_by_username(token_data["username"])
     if user is None:
         raise credentials_exception
-    return UserResponse(username=user["username"], role=user["role"])
+    return UserResponse(
+        username=user["username"],
+        role=user["role"],
+        full_name=user.get("full_name", token_data.get("full_name", "")),
+    )
 
 
 def require_role(allowed_roles: list[str]):

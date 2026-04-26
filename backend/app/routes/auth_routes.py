@@ -1,20 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordRequestForm
 from datetime import timedelta
-from typing import Literal
 from schemas.user_schema import Token, UserCreate, UserResponse
 from utils.auth import (
     get_password_hash,
     verify_password,
     create_access_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
     get_current_user,
     require_role,
 )
+from core.config import get_settings
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
-# Only these roles may be self-registered via the public API.
 _REGISTERABLE_ROLES: set[str] = {"doctor", "nurse"}
 
 
@@ -31,20 +29,32 @@ async def login_for_access_token(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token_expires = timedelta(minutes=get_settings().access_token_expire_minutes)
     access_token = create_access_token(
-        data={"sub": user["username"], "role": user["role"]},
+        data={
+            "sub": user["username"],
+            "role": user["role"],
+            "full_name": user.get("full_name", ""),
+        },
         expires_delta=access_token_expires,
     )
     return {
         "access_token": access_token,
         "token_type": "bearer",
-        "user": {"username": user["username"], "role": user["role"]},
+        "user": {
+            "username": user["username"],
+            "role": user["role"],
+            "full_name": user.get("full_name", ""),
+        },
     }
 
 
 @router.post("/register")
-async def register(request: Request, user_in: UserCreate):
+async def register(
+    request: Request,
+    user_in: UserCreate,
+    current_user: UserResponse = Depends(require_role(["admin"])),
+):
     if user_in.role not in _REGISTERABLE_ROLES:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -80,9 +90,6 @@ async def get_me(current_user: UserResponse = Depends(get_current_user)):
     }
 
 
-# ── Admin-only user management ────────────────────────────────────────────────
-
-
 @router.get("/users")
 async def list_users(
     request: Request,
@@ -104,6 +111,7 @@ async def admin_create_user(
     username = user_in.get("username", "").strip()
     password = user_in.get("password", "")
     role = user_in.get("role", "")
+    full_name = user_in.get("full_name", "").strip()
 
     if not username or len(username) < 3:
         raise HTTPException(
@@ -128,12 +136,14 @@ async def admin_create_user(
             "username": username,
             "hashed_password": get_password_hash(password),
             "role": role,
+            "full_name": full_name,
         }
     )
     return {
         "message": f"User '{username}' created successfully.",
         "username": username,
         "role": role,
+        "full_name": full_name,
     }
 
 

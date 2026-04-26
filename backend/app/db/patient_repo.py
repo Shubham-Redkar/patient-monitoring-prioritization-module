@@ -14,7 +14,6 @@ class PatientRepository:
     def meta_col(self):
         return get_db().patient_meta
 
-    # Insert or update a reading
     async def upsert_reading(
         self,
         patient_id: int,
@@ -41,7 +40,6 @@ class PatientRepository:
             upsert=True,
         )
 
-    # Bulk insert for seeding data
     async def bulk_upsert_readings(self, readings: list[dict]):
 
         if not readings:
@@ -61,7 +59,6 @@ class PatientRepository:
 
         await self.col.bulk_write(ops, ordered=False)
 
-    # Fetch history between hours
     async def get_history(
         self,
         patient_id: int,
@@ -79,7 +76,6 @@ class PatientRepository:
 
         return await cursor.to_list(length=None)
 
-    # Latest reading for a patient
     async def get_latest_reading(self, patient_id: int) -> Optional[dict]:
 
         return await self.col.find_one(
@@ -88,7 +84,6 @@ class PatientRepository:
             sort=[("hour_from_admission", -1)],
         )
 
-    # List all patients
     async def list_patients(self) -> list[int]:
 
         return await self.col.distinct("patient_id")

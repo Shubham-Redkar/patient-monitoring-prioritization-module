@@ -7,15 +7,9 @@ def ensure_sorted(df: pd.DataFrame):
 
 
 def handle_missing(df: pd.DataFrame, fill_value: float = None):
-    # FIX: the old default fill_value=0.0 silently replaced NaN clinical values
-    # (SpO2, heart rate, blood pressure, etc.) with 0 — physiologically impossible
-    # values that would drive the ML models toward false anomaly flags.
-    # We now propagate NaN so the models surface missing data rather than
-    # misclassifying it. Callers that genuinely need a numeric fill can still
-    # pass an explicit fill_value.
     if fill_value is not None:
         return df.fillna(fill_value)
-    return df  # keep NaN — let downstream models handle missingness
+    return df
 
 
 def select_features(df: pd.DataFrame, feature_list: list):
@@ -24,7 +18,7 @@ def select_features(df: pd.DataFrame, feature_list: list):
 
 def scale_features(df: pd.DataFrame, scaler, feature_list: list):
     df = select_features(df, feature_list)
-    df = handle_missing(df)  # NaN passthrough — scaler will raise if NaN present
+    df = handle_missing(df)
     return scaler.transform(df.values)
 
 

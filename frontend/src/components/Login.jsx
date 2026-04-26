@@ -32,7 +32,6 @@ const Login = () => {
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
       <div className="w-full max-w-sm px-4">
-        {/* Header */}
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-2 mb-2">
             <Activity className="w-7 h-7 text-slate-900" />
@@ -45,7 +44,6 @@ const Login = () => {
           </p>
         </div>
 
-        {/* Card */}
         <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-slate-900 p-7 shadow-sm">
           {error && (
             <div className="flex items-center gap-2 text-base px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-red-800 mb-5">

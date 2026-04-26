@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Request, HTTPException, Depends
 from datetime import datetime, timezone
 import pandas as pd
-
 from utils.vital_features import compute_vital_features
 from utils.lab_features import compute_lab_features
 from utils.alert_logic import determine_alert
 from utils.explanability import extract_signals
-
 from services.priority_service import PriorityService
 from services.grok_services import generate_explanation
 from schemas.response_schema import PredictionResponse
@@ -90,7 +88,6 @@ async def predict(
 
     patient_meta = await repo.get_patient_meta(patient_id) or {}
 
-    # Normalize datetime fields once
     patient_meta["alert_acknowledged_at"] = to_iso(
         patient_meta.get("alert_acknowledged_at")
     )
@@ -104,7 +101,6 @@ async def predict(
 
     alert = determine_alert(priority, previous_priority)
 
-    # Merge persistent acknowledgement from patient_meta into alert
     if patient_meta.get("alert_acknowledged"):
         alert["acknowledged"] = True
         alert["acknowledged_by"] = patient_meta.get("alert_acknowledged_by")

@@ -10,7 +10,7 @@ router = APIRouter(prefix="/api/v1", tags=["alerts"])
 async def acknowledge_alert(
     patient_id: int,
     request: Request,
-    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
+    current_user: UserResponse = Depends(require_role(["doctor", "nurse"])),
 ):
     repo = request.app.state.patient_repo
     ok = await repo.acknowledge_alert(patient_id, current_user.username)

@@ -68,7 +68,6 @@ const PRIORITY_COLORS = {
     border: "border-orange-400",
     dot: "bg-orange-500",
   },
-  // ── Fix: Medium was missing, fell back to green Normal ──────────────────
   Medium: {
     bg: "bg-yellow-100",
     text: "text-yellow-800",
@@ -112,8 +111,6 @@ function PriorityBadge({ level, isOverride }) {
   );
 }
 
-// ── Parse SHAP signal string from backend ───────────────────────────────────
-// Format: "lactate: 3.20 mmol/L [HIGH, normal: < 2] (SHAP ↑0.412)"
 function parseSignal(str) {
   const nameMatch = str.match(/^([^:]+):/);
   const statusMatch = str.match(/\[(HIGH|LOW|NORMAL)/);
@@ -152,8 +149,6 @@ const formatIST = (dateStr) => {
   });
 };
 
-// ── Signals card: renders top lab + vital contributing factors ───────────────
-// Uses the signals object returned on every /predict response (was previously ignored)
 function SignalsCard({ signals }) {
   if (!signals) return null;
 
@@ -174,7 +169,6 @@ function SignalsCard({ signals }) {
         </p>
       </div>
       <div className="grid md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-slate-100">
-        {/* Lab signals */}
         <div className="px-5 py-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
             <FlaskConical size={13} className="text-violet-500" />
@@ -215,7 +209,6 @@ function SignalsCard({ signals }) {
           )}
         </div>
 
-        {/* Vital signals */}
         <div className="px-5 py-4">
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
             <HeartPulse size={13} className="text-rose-500" />
@@ -260,8 +253,6 @@ function SignalsCard({ signals }) {
   );
 }
 
-// ── Chart options with annotation plugin: vertical line at current hour ──────
-// annotationPlugin was registered but never configured — now draws "current time" marker
 function buildChartOptions(currentHourLabel) {
   return {
     responsive: true,
@@ -288,7 +279,6 @@ function buildChartOptions(currentHourLabel) {
         borderColor: "rgba(255,255,255,0.08)",
         borderWidth: 1,
       },
-      // ── Annotation: vertical dashed line at the rightmost (current) data point
       annotation: {
         annotations: currentHourLabel
           ? {
@@ -370,7 +360,7 @@ export default function PatientDetails() {
   const [overrideMsg, setOverrideMsg] = useState(null);
 
   const prevPriorityRef = useRef(null);
-  const prevMaxHourRef = useRef(null); // tracks highest hour seen, to detect new uploads
+  const prevMaxHourRef = useRef(null);
   const debounceRef = useRef(null);
   const hourRef = useRef(0);
 
@@ -405,7 +395,6 @@ export default function PatientDetails() {
     async (pid) => {
       setChartLoading(true);
       try {
-        // FIX: history endpoint now requires auth — was missing Authorization header
         const res = await fetch(
           `${BASE}/patients/${pid}/history?from_hour=0&to_hour=72`,
           { headers: { Authorization: `Bearer ${token}` } },
@@ -426,7 +415,6 @@ export default function PatientDetails() {
       setLoading(true);
       setError(null);
       try {
-        // FIX: predict endpoint now requires auth — was missing Authorization header
         const res = await fetch(`${BASE}/patients/${pid}/predict?hour=${h}`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -436,9 +424,6 @@ export default function PatientDetails() {
         }
         const data = await res.json();
         setPrediction(data);
-        // Update explanation only on first load (ref is null) or when priority changes.
-        // Regenerating on every 10-second poll caused it to flicker with slightly
-        // different wording each time the LLM was called — this keeps it stable.
         if (
           prevPriorityRef.current === null ||
           data.priority_level !== prevPriorityRef.current
@@ -462,15 +447,10 @@ export default function PatientDetails() {
     Promise.all([fetchHistory(patientId), fetchPrediction(patientId, 0)]);
   }, [patientId, fetchMeta, fetchHistory, fetchPrediction]);
 
-  // ── Poll: refresh prediction AND history if new data has arrived ──────────
-  // Previously only fetchPrediction was called; history never refreshed during session.
-  // Now we compare the max hour seen — if it grew, new readings were uploaded, so
-  // we also refresh history so charts stay current.
   useEffect(() => {
     if (!patientId) return;
     const interval = setInterval(async () => {
       await fetchPrediction(patientId, hourRef.current);
-      // Peek at latest history to detect new upload without a full refetch
       try {
         const res = await fetch(
           `${BASE}/patients/${patientId}/history?from_hour=0&to_hour=72`,
@@ -481,7 +461,7 @@ export default function PatientDetails() {
         const maxHour = data.vitals?.at(-1)?.hour ?? null;
         if (maxHour !== null && maxHour !== prevMaxHourRef.current) {
           prevMaxHourRef.current = maxHour;
-          setHistory(data); // new data uploaded — update charts
+          setHistory(data);
         }
       } catch {
         /* ignore */
@@ -503,7 +483,6 @@ export default function PatientDetails() {
     }, 300);
   };
 
-  // Slice history to current slider hour
   const slicedVitals = history?.vitals
     ? history.vitals.filter((r) => r.hour <= hour)
     : null;
@@ -511,7 +490,6 @@ export default function PatientDetails() {
     ? history.labs.filter((r) => r.hour <= hour)
     : null;
 
-  // Label of the rightmost data point — used by annotationPlugin for the vertical line
   const vitalCurrentLabel = slicedVitals?.at(-1)
     ? `${slicedVitals.at(-1).hour}h`
     : null;
@@ -527,7 +505,6 @@ export default function PatientDetails() {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error("Failed to acknowledge");
-      // Refresh prediction so alert.acknowledged=true comes back from the server
       await fetchPrediction(patientId, hourRef.current);
     } catch {
       /* ignore — prediction poll will sync state */
@@ -608,7 +585,6 @@ export default function PatientDetails() {
       className="min-h-screen bg-slate-50 text-slate-900"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* ── Topbar ─────────────────────────────────────────────────────────── */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
@@ -662,7 +638,6 @@ export default function PatientDetails() {
       </div>
 
       <div className="p-6 max-w-7xl mx-auto">
-        {/* ── Patient ID + slider ─────────────────────────────────────────── */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 mb-5">
           <div className="flex flex-wrap gap-6 items-center">
             <div>
@@ -694,7 +669,6 @@ export default function PatientDetails() {
           </div>
         </div>
 
-        {/* ── Override active banner ──────────────────────────────────────── */}
         {override && (
           <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 mb-5 flex items-start justify-between gap-4">
             <div>
@@ -729,7 +703,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ── Metrics ────────────────────────────────────────────────────── */}
         {prediction && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
             <div className="bg-white rounded-xl border border-slate-200 p-5">
@@ -762,7 +735,6 @@ export default function PatientDetails() {
               )}
             </div>
 
-            {/* ── Vital Status card border driven by sustained_instability ── */}
             <div
               className={`bg-white rounded-xl border p-5 ${vitalCardBorder(prediction.vital_anomaly_flag, prediction.sustained_instability)}`}
             >
@@ -784,10 +756,8 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ── Alert / Acknowledged banner ─────────────────────────────────── */}
         {prediction?.alert?.alert &&
           (prediction.alert.acknowledged ? (
-            /* Acknowledged: calm green pill — persists across polls and slider moves */
             <div className="rounded-xl border border-green-200 bg-green-50 p-4 mb-5 flex items-center justify-between gap-4">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-green-800">
@@ -816,7 +786,6 @@ export default function PatientDetails() {
               </span>
             </div>
           ) : (
-            /* Active alert: banner with Acknowledge button */
             <div
               className={`rounded-xl border p-4 mb-5 flex items-start justify-between gap-4 ${
                 prediction.alert.level === "CRITICAL"
@@ -857,22 +826,23 @@ export default function PatientDetails() {
                   </p>
                 )}
               </div>
-              <button
-                onClick={handleAcknowledge}
-                disabled={acknowledging}
-                className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
-                  prediction.alert.level === "CRITICAL"
-                    ? "border-red-400 text-red-800 hover:bg-red-100"
-                    : "border-orange-400 text-orange-800 hover:bg-orange-100"
-                }`}
-              >
-                <ShieldAlert size={14} />
-                {acknowledging ? "Acknowledging…" : "Acknowledge"}
-              </button>
+              {user?.role !== "admin" && (
+                <button
+                  onClick={handleAcknowledge}
+                  disabled={acknowledging}
+                  className={`shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold border transition-colors disabled:opacity-50 ${
+                    prediction.alert.level === "CRITICAL"
+                      ? "border-red-400 text-red-800 hover:bg-red-100"
+                      : "border-orange-400 text-orange-800 hover:bg-orange-100"
+                  }`}
+                >
+                  <ShieldAlert size={14} />
+                  {acknowledging ? "Acknowledging…" : "Acknowledge"}
+                </button>
+              )}
             </div>
           ))}
 
-        {/* ── Manual Override Panel ───────────────────────────────────────── */}
         {canOverride && (
           <div className="bg-white rounded-xl border border-slate-200 mb-5 overflow-hidden">
             <button
@@ -973,9 +943,7 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ── Charts with annotation vertical line at current hour ─────────── */}
         <div className="grid md:grid-cols-2 gap-5 mb-5">
-          {/* Vital Trends */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -1022,7 +990,6 @@ export default function PatientDetails() {
             </div>
           </div>
 
-          {/* Lab Trends */}
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
             <div className="px-5 pt-4 pb-3 border-b border-slate-100 flex items-center justify-between">
               <div>
@@ -1070,7 +1037,6 @@ export default function PatientDetails() {
           </div>
         </div>
 
-        {/* ── Clinical Explanation ─────────────────────────────────────────── */}
         {explanation && (
           <div className="bg-white border border-slate-200 rounded-xl p-5 mb-5">
             <p className="text-base font-semibold text-slate-800 mb-2 flex items-center gap-2">
@@ -1086,7 +1052,6 @@ export default function PatientDetails() {
           </div>
         )}
 
-        {/* ── Top Contributing Factors ──────────────────────────────────────── */}
         {prediction?.signals && <SignalsCard signals={prediction.signals} />}
 
         {error && (

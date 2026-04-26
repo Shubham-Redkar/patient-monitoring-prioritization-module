@@ -63,6 +63,7 @@ export default function UserManagement() {
     username: "",
     password: "",
     role: "nurse",
+    full_name: "",
   });
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState(null);
@@ -106,7 +107,7 @@ export default function UserManagement() {
         type: "success",
         text: `User '${data.username}' created as ${data.role}.`,
       });
-      setForm({ username: "", password: "", role: "nurse" });
+      setForm({ username: "", password: "", role: "nurse", full_name: "" });
       fetchUsers();
     } catch (err) {
       setCreateMsg({ type: "error", text: err.message });
@@ -139,7 +140,6 @@ export default function UserManagement() {
       className="min-h-screen bg-slate-50"
       style={{ fontFamily: "system-ui, sans-serif" }}
     >
-      {/* Topbar */}
       <div className="bg-white border-b border-slate-200 px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div>
@@ -152,7 +152,7 @@ export default function UserManagement() {
           </div>
           <div className="flex items-center gap-3">
             <span className="text-base text-slate-700 font-medium">
-              {user?.username}
+              {user?.full_name || user?.username}
               <span className="ml-2 text-sm text-slate-400 capitalize">
                 ({user?.role})
               </span>
@@ -177,7 +177,6 @@ export default function UserManagement() {
 
       <div className="p-6 max-w-7xl mx-auto">
         <div className="grid md:grid-cols-2 gap-6 items-start">
-          {/* ── Add User Card ── */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-blue-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
@@ -191,6 +190,20 @@ export default function UserManagement() {
             <div className="px-6 py-6">
               <StatusMessage msg={createMsg} />
               <div className="flex flex-col gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                    Full Name
+                  </label>
+                  <input
+                    type="text"
+                    value={form.full_name}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, full_name: e.target.value }))
+                    }
+                    placeholder="e.g. Dr. Sarah Smith"
+                    className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                  />
+                </div>
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1.5">
                     Username
@@ -251,7 +264,6 @@ export default function UserManagement() {
             </div>
           </div>
 
-          {/* ── Users List Card ── */}
           <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-slate-500">
             <div className="px-6 pt-5 pb-4 border-b border-slate-100">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
@@ -287,13 +299,18 @@ export default function UserManagement() {
                         </div>
                         <div>
                           <p className="text-sm font-medium text-slate-900">
-                            {u.username}
+                            {u.full_name || u.username}
                             {u.username === user?.username && (
                               <span className="ml-2 text-xs text-slate-400">
                                 (you)
                               </span>
                             )}
                           </p>
+                          {u.full_name && (
+                            <p className="text-xs text-slate-400">
+                              @{u.username}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center gap-3">
