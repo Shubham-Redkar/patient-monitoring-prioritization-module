@@ -35,20 +35,17 @@ const AppRoutes = () => {
 
   return (
     <Routes>
-      {/* Login */}
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
 
-      {/* Dashboard */}
       <Route
         path="/"
         element={
           <ProtectedRoute>
-            {user?.role === "nurse" ? <Navigate to="/data" /> : <Dashboard />}
+            <Dashboard />
           </ProtectedRoute>
         }
       />
 
-      {/* Patient Details */}
       <Route
         path="/patient/:patientId"
         element={
@@ -67,7 +64,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Data Management */}
       <Route
         path="/data"
         element={
@@ -77,7 +73,6 @@ const AppRoutes = () => {
         }
       />
 
-      {/* Fallback */}
       <Route path="*" element={<Navigate to="/" />} />
     </Routes>
   );

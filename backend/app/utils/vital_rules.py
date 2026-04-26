@@ -1,12 +1,6 @@
 from utils.constants import FEATURE_META
 
 
-# FIX: thresholds are now read directly from FEATURE_META so the rule-based
-# fallback (used when < 4 readings exist) and the clinical display ranges
-# are always in sync. Previously the thresholds were hardcoded and had
-# diverged — e.g. spo2 alert triggered at < 90 % here but FEATURE_META
-# marks anything below 95 % as abnormal; temperature threshold was 38.5 °C
-# here vs 38.3 °C in constants.
 def rule_based_vital_check(vital_df):
     row = vital_df.iloc[-1]
 

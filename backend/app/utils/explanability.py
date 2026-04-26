@@ -3,7 +3,6 @@ import pandas as pd
 from utils.preprocessing import scale_features
 from utils.constants import FEATURE_META
 
-# Cache explainers at module level — built once, reused every request
 _lab_explainer = None
 _vital_explainer = None
 

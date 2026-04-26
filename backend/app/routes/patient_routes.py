@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-
 from fastapi import APIRouter, Request, HTTPException, Depends
 from schemas.user_schema import UserResponse
 from utils.auth import require_role
@@ -43,7 +42,7 @@ async def list_patients(
 async def get_patient_meta(
     patient_id: int,
     request: Request,
-    current_user: UserResponse = Depends(require_role(["doctor", "admin"])),
+    current_user: UserResponse = Depends(require_role(["doctor", "admin", "nurse"])),
 ):
     repo = request.app.state.patient_repo
     meta = await repo.get_patient_meta(patient_id)
@@ -56,7 +55,6 @@ async def get_patient_meta(
             "priority": meta["manual_priority"],
             "reason": meta.get("manual_priority_reason", ""),
             "set_by": meta.get("manual_priority_by", ""),
-            # FIX: normalise to UTC ISO string so frontend toLocaleString() works
             "set_at": normalise_set_at(meta.get("manual_priority_at")),
         }
 
@@ -76,9 +74,6 @@ async def override_priority(
         raise HTTPException(status_code=400, detail="priority and reason are required")
 
     repo = request.app.state.patient_repo
-    # FIX: pass utc_now_iso() as the username arg position is unchanged;
-    # override_patient_priority signature: (patient_id, priority, reason, set_by)
-    # The repo itself should store utc_now_iso() — update it there, not here.
     await repo.override_patient_priority(
         patient_id, priority, reason, current_user.username
     )
