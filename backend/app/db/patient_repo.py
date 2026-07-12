@@ -138,3 +138,25 @@ class PatientRepository:
 
     async def get_patient_meta(self, patient_id: int):
         return await self.meta_col.find_one({"patient_id": patient_id}, {"_id": 0})
+
+    async def clear_priority_override(self, patient_id: int):
+        await self.meta_col.update_one(
+            {"patient_id": patient_id},
+            {
+                "$unset": {
+                    field: ""
+                    for field in (
+                        "manual_priority",
+                        "manual_priority_reason",
+                        "manual_priority_by",
+                        "manual_priority_at",
+                    )
+                }
+            },
+        )
+
+    async def delete_patient(self, patient_id: int) -> int:
+        result = await self.col.delete_many({"patient_id": patient_id})
+        if result.deleted_count:
+            await self.meta_col.delete_one({"patient_id": patient_id})
+        return result.deleted_count

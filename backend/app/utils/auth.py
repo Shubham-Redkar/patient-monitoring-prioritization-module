@@ -49,6 +49,7 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
         username: str | None = payload.get("sub")
         role: str | None = payload.get("role")
         full_name: str = payload.get("full_name") or ""
+        token_version: int = payload.get("token_version", 0)
         if username is None or role is None:
             raise credentials_exception
         token_data = {"username": username, "role": role, "full_name": full_name}
@@ -59,10 +60,13 @@ async def get_current_user(request: Request, token: str = Depends(oauth2_scheme)
     user = await repo.get_user_by_username(token_data["username"])
     if user is None:
         raise credentials_exception
+    if user.get("token_version", 0) != token_version:
+        raise credentials_exception
     return UserResponse(
         username=user["username"],
         role=user["role"],
         full_name=user.get("full_name", token_data.get("full_name", "")),
+        email=user.get("email", ""),
     )
 
 
