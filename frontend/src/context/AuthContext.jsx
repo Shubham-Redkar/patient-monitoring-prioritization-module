@@ -1,7 +1,8 @@
 import { createContext, useState, useEffect, useContext } from "react";
+import { apiRequest } from "../api/client";
+import { API_URL } from "../config/app";
 
 const AuthContext = createContext(null);
-const BASE = "http://localhost:8000/api/v1";
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
@@ -21,17 +22,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       try {
-        const res = await fetch(`${BASE}/auth/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (!res.ok) throw new Error("Invalid token");
-
-        const data = await res.json();
-        setUser(data.user || user);
-      } catch (err) {
+        const data = await apiRequest("/auth/me", { token });
+        setUser(data.user);
+      } catch {
         setUser(null);
         setToken(null);
         localStorage.removeItem("token");
@@ -42,14 +35,14 @@ export const AuthProvider = ({ children }) => {
     };
 
     initAuth();
-  }, []);
+  }, [token]);
 
   const login = async (username, password) => {
     const formData = new URLSearchParams();
     formData.append("username", username);
     formData.append("password", password);
 
-    const res = await fetch(`${BASE}/auth/login`, {
+    const res = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -92,9 +85,11 @@ export const AuthProvider = ({ children }) => {
         loading,
       }}
     >
-      {!loading && children}
+      {children}
     </AuthContext.Provider>
   );
 };
 
+// The provider and its small companion hook intentionally share this module.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => useContext(AuthContext);

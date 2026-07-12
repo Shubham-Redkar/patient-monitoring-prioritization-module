@@ -19,7 +19,7 @@ def select_features(df: pd.DataFrame, feature_list: list):
 def scale_features(df: pd.DataFrame, scaler, feature_list: list):
     df = select_features(df, feature_list)
     df = handle_missing(df)
-    return scaler.transform(df.values)
+    return scaler.transform(df)
 
 
 def predict_logistic(model, scaler, df, feature_list, threshold):

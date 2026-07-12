@@ -1,4 +1,5 @@
 import pandas as pd
+from utils.feature_engineering import grouped_rolling, sorted_readings
 
 VITAL_COLS = [
     "heart_rate",
@@ -14,7 +15,7 @@ WINDOW_SIZE = 4
 
 def compute_vital_features(df: pd.DataFrame):
 
-    df = df.sort_values(["patient_id", "hour_from_admission"]).reset_index(drop=True)
+    df = sorted_readings(df)
 
     for col in VITAL_COLS:
 
@@ -22,11 +23,8 @@ def compute_vital_features(df: pd.DataFrame):
             WINDOW_SIZE
         )
 
-        df[f"{col}_roll_std_4h"] = (
-            df.groupby("patient_id")[col]
-            .rolling(WINDOW_SIZE, min_periods=1)
-            .std()
-            .reset_index(level=0, drop=True)
+        df[f"{col}_roll_std_4h"] = grouped_rolling(
+            df, col, WINDOW_SIZE, "std"
         )
 
     return df

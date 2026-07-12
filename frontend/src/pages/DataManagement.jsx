@@ -1,306 +1,53 @@
-import { useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useRef, useState } from "react";
+import { FileUp, Trash2, Upload, X } from "lucide-react";
+import { patientApi, apiRequest } from "../api/client";
+import StatusMessage from "../components/common/StatusMessage";
+import AppShell from "../components/layout/AppShell";
+import { MAX_UPLOAD_BYTES } from "../config/app";
 import { useAuth } from "../context/AuthContext";
-import {
-  LayoutDashboard,
-  Database,
-  Upload,
-  Trash2,
-  FileUp,
-  X,
-  LogOut,
-  CheckCircle,
-  XCircle,
-} from "lucide-react";
 
-const BASE = "http://localhost:8000/api/v1";
-
-function StatusMessage({ msg }) {
-  if (!msg) return null;
-  const isError = msg.type === "error";
-  return (
-    <div
-      className={`flex items-start gap-2 text-base px-4 py-3 rounded-lg border mb-5 ${
-        isError
-          ? "bg-red-50 border-red-200 text-red-800"
-          : "bg-green-50 border-green-200 text-green-800"
-      }`}
-    >
-      {isError ? (
-        <XCircle className="w-4 h-4 shrink-0 mt-0.5" />
-      ) : (
-        <CheckCircle className="w-4 h-4 shrink-0 mt-0.5" />
-      )}
-      <span>{msg.text}</span>
-    </div>
-  );
-}
+const megabytes = (bytes) => `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 
 export default function DataManagement() {
-  const { user, token, logout } = useAuth();
-  const navigate = useNavigate();
+  const { token } = useAuth();
+  const inputRef = useRef();
   const [file, setFile] = useState(null);
-  const [uploadMsg, setUploadMsg] = useState(null);
-  const [delPatientId, setDelPatientId] = useState("");
-  const [delMsg, setDelMsg] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  const [patientId, setPatientId] = useState("");
+  const [uploadStatus, setUploadStatus] = useState(null);
+  const [deleteStatus, setDeleteStatus] = useState(null);
+  const [busy, setBusy] = useState("");
 
-  const fileInputRef = useRef(null);
-
-  const handleFileChange = (e) => {
-    if (e.target.files && e.target.files.length > 0) {
-      setFile(e.target.files[0]);
-      setUploadMsg(null);
-    }
-  };
-
-  const handleUpload = async (e) => {
-    e.preventDefault();
+  const upload = async (event) => {
+    event.preventDefault();
     if (!file) return;
-    if (!file.name.endsWith(".csv")) {
-      setUploadMsg({ type: "error", text: "Only CSV files are allowed." });
-      return;
+    if (!file.name.toLowerCase().endsWith(".csv") || file.size > MAX_UPLOAD_BYTES) {
+      setUploadStatus({ type: "error", text: `Choose a CSV file no larger than ${megabytes(MAX_UPLOAD_BYTES)}.` }); return;
     }
-    if (file.size > 5 * 1024 * 1024) {
-      setUploadMsg({
-        type: "error",
-        text: "File too large — maximum size is 5 MB.",
-      });
-      return;
-    }
-    setUploading(true);
-    setUploadMsg(null);
-    const formData = new FormData();
-    formData.append("file", file);
+    setBusy("upload"); setUploadStatus(null);
+    const body = new FormData(); body.append("file", file);
     try {
-      const res = await fetch(`${BASE}/upload-csv`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-        body: formData,
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Upload failed");
-      setUploadMsg({
-        type: "success",
-        text: `${data.rows_inserted} rows inserted successfully.`,
-      });
-      setFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err) {
-      setUploadMsg({ type: "error", text: err.message });
-    } finally {
-      setUploading(false);
-    }
+      const result = await apiRequest("/upload-csv", { token, method: "POST", body });
+      setUploadStatus({ type: "success", text: `${result.rows_inserted} readings imported successfully.` });
+      setFile(null); if (inputRef.current) inputRef.current.value = "";
+    } catch (error) { setUploadStatus({ type: "error", text: error.message }); }
+    finally { setBusy(""); }
   };
 
-  const handleDelete = async (e) => {
-    e.preventDefault();
-    if (!delPatientId) return;
-    if (
-      !window.confirm(
-        `Delete all records for patient ${delPatientId}? This cannot be undone.`,
-      )
-    )
-      return;
-    setDeleting(true);
-    setDelMsg(null);
+  const remove = async (event) => {
+    event.preventDefault();
+    if (!patientId || !window.confirm(`Permanently delete all records for patient ${patientId}?`)) return;
+    setBusy("delete"); setDeleteStatus(null);
     try {
-      const res = await fetch(`${BASE}/patients/${delPatientId}`, {
-        method: "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Deletion failed");
-      setDelMsg({
-        type: "success",
-        text: `Patient ${delPatientId} deleted — ${data.deleted_count} records removed.`,
-      });
-      setDelPatientId("");
-    } catch (err) {
-      setDelMsg({ type: "error", text: err.message });
-    } finally {
-      setDeleting(false);
-    }
+      const result = await patientApi.remove(token, patientId);
+      setDeleteStatus({ type: "success", text: `${result.deleted_count} records removed for patient ${patientId}.` }); setPatientId("");
+    } catch (error) { setDeleteStatus({ type: "error", text: error.message }); }
+    finally { setBusy(""); }
   };
 
-  const fileSizeLabel = file
-    ? file.size > 1024 * 1024
-      ? `${(file.size / 1024 / 1024).toFixed(1)} MB`
-      : `${(file.size / 1024).toFixed(0)} KB`
-    : null;
-
-  return (
-    <div
-      className="min-h-screen bg-slate-50"
-      style={{ fontFamily: "system-ui, sans-serif" }}
-    >
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-slate-700" />
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">
-                Clinical Data Management
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Upload or remove patient records
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-base text-slate-700 font-medium">
-              {user?.username}
-              <span className="ml-2 text-sm text-slate-400 capitalize">
-                ({user?.role})
-              </span>
-            </span>
-            {(user?.role === "admin" || user?.role === "nurse") && (
-              <button
-                className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
-                onClick={() => navigate("/")}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                Dashboard
-              </button>
-            )}
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
-              onClick={logout}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="grid md:grid-cols-2 gap-6 items-start">
-          <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-blue-500">
-            <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                <Upload className="w-4 h-4 text-blue-500" />
-                Upload Patient Data
-              </h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                CSV files only · max 5 MB
-              </p>
-            </div>
-
-            <div className="px-6 py-6">
-              <StatusMessage msg={uploadMsg} />
-
-              <form onSubmit={handleUpload} className="flex flex-col">
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className={`cursor-pointer rounded-xl border-2 border-dashed px-6 py-8 text-center transition-colors flex flex-col items-center justify-center min-h-40 ${
-                    file
-                      ? "border-slate-400 bg-slate-50"
-                      : "border-slate-200 hover:border-slate-400 hover:bg-slate-50"
-                  }`}
-                >
-                  {file ? (
-                    <div>
-                      <p className="text-base font-medium text-slate-900 font-mono break-all">
-                        {file.name}
-                      </p>
-                      <p className="text-sm text-slate-500 mt-1">
-                        {fileSizeLabel}
-                      </p>
-                    </div>
-                  ) : (
-                    <div>
-                      <FileUp className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-                      <p className="text-base text-slate-600">
-                        Click to select a CSV file
-                      </p>
-                      <p className="text-sm text-slate-400 mt-1">
-                        or drag and drop
-                      </p>
-                    </div>
-                  )}
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileChange}
-                    ref={fileInputRef}
-                    className="hidden"
-                  />
-                </div>
-
-                <div className="flex items-center gap-3 mt-5">
-                  <button
-                    type="submit"
-                    disabled={uploading || !file}
-                    className="flex items-center gap-1.5 px-5 py-2.5 bg-slate-900 text-white text-base font-medium rounded-lg hover:bg-slate-700 disabled:opacity-40"
-                  >
-                    <Upload className="w-4 h-4" />
-                    {uploading ? "Uploading…" : "Upload"}
-                  </button>
-                  {file && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setFile(null);
-                        setUploadMsg(null);
-                        if (fileInputRef.current)
-                          fileInputRef.current.value = "";
-                      }}
-                      className="flex items-center gap-1.5 px-5 py-2.5 border border-slate-300 text-slate-600 text-base rounded-lg hover:bg-slate-50"
-                    >
-                      <X className="w-4 h-4" />
-                      Clear
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl border border-slate-200 border-t-4 border-t-red-500">
-            <div className="px-6 pt-5 pb-4 border-b border-slate-100">
-              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                <Trash2 className="w-4 h-4 text-red-500" />
-                Delete Patient Records
-              </h2>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Permanently removes all readings for a patient
-              </p>
-            </div>
-
-            <div className="px-6 py-6">
-              <StatusMessage msg={delMsg} />
-
-              <form onSubmit={handleDelete} className="flex flex-col">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                    Patient ID
-                  </label>
-                  <input
-                    value={delPatientId}
-                    onChange={(e) => setDelPatientId(e.target.value)}
-                    placeholder="e.g. 123"
-                    type="text"
-                    className="w-full border border-slate-300 rounded-lg px-3 py-2.5 text-base text-slate-900 focus:outline-none focus:ring-2 focus:ring-slate-400 mb-4"
-                  />
-                  <button
-                    type="submit"
-                    disabled={deleting || !delPatientId}
-                    className="flex items-center gap-1.5 px-5 py-2.5 bg-red-600 text-white text-base font-medium rounded-lg hover:bg-red-700 disabled:opacity-40"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                    {deleting ? "Deleting…" : "Delete Patient"}
-                  </button>
-                  <p className="text-sm text-slate-400 mt-4">
-                    This action is permanent and cannot be reversed.
-                  </p>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      </div>
+  return <AppShell title="Clinical Data Operations" subtitle="Controlled import and removal of patient monitoring records">
+    <div className="grid gap-5 lg:grid-cols-2">
+      <section className="rounded-xl border border-slate-200 bg-white"><header className="border-b border-slate-200 p-5"><h2 className="flex items-center gap-2 font-semibold"><Upload className="h-4 w-4 text-cyan-700" />Import monitoring data</h2><p className="mt-1 text-sm text-slate-500">Validated CSV only · maximum {megabytes(MAX_UPLOAD_BYTES)}</p></header><form onSubmit={upload} className="space-y-4 p-5"><StatusMessage message={uploadStatus} /><button type="button" onClick={() => inputRef.current?.click()} className="flex min-h-48 w-full flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-6 text-center hover:border-cyan-500"><FileUp className="mb-3 h-10 w-10 text-slate-400" /><strong className="text-sm">{file?.name || "Select patient CSV"}</strong><span className="mt-1 text-xs text-slate-500">{file ? megabytes(file.size) : "Click to browse"}</span></button><input ref={inputRef} hidden type="file" accept=".csv,text/csv" onChange={(event) => { setFile(event.target.files?.[0] || null); setUploadStatus(null); }} /><div className="flex gap-2"><button disabled={!file || busy === "upload"} className="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy === "upload" ? "Importing…" : "Import data"}</button>{file && <button type="button" onClick={() => setFile(null)} className="flex items-center gap-1 rounded-md border border-slate-300 px-4 py-2 text-sm"><X className="h-4 w-4" />Clear</button>}</div></form></section>
+      <section className="rounded-xl border border-red-200 bg-white"><header className="border-b border-red-100 p-5"><h2 className="flex items-center gap-2 font-semibold text-red-900"><Trash2 className="h-4 w-4" />Remove patient dataset</h2><p className="mt-1 text-sm text-slate-500">Permanent administrative operation with confirmation</p></header><form onSubmit={remove} className="space-y-4 p-5"><StatusMessage message={deleteStatus} /><label className="block text-sm font-medium text-slate-700">Patient ID<input value={patientId} onChange={(event) => setPatientId(event.target.value)} className="mt-2 block w-full rounded-md border border-slate-300 px-3 py-2" placeholder="Enter exact patient ID" /></label><div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">This removes all readings and metadata for the selected patient and cannot be undone.</div><button disabled={!patientId || busy === "delete"} className="rounded-md bg-red-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{busy === "delete" ? "Removing…" : "Permanently remove"}</button></form></section>
     </div>
-  );
+  </AppShell>;
 }

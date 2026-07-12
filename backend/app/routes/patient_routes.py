@@ -1,31 +1,9 @@
-from datetime import datetime, timezone
 from fastapi import APIRouter, Request, HTTPException, Depends
 from schemas.user_schema import UserResponse
 from utils.auth import require_role
+from utils.datetime_utils import to_utc_iso
 
 router = APIRouter(prefix="/api/v1", tags=["patients"])
-
-
-def utc_now_iso() -> str:
-    """Return current UTC time as a timezone-aware ISO 8601 string.
-    e.g. '2026-04-05T10:46:48+00:00'
-    Use this instead of datetime.utcnow() so the frontend correctly
-    converts to local time via new Date(isoString).toLocaleString().
-    """
-    return datetime.now(timezone.utc).isoformat()
-
-
-def normalise_set_at(raw) -> str | None:
-    """Normalise whatever timestamp shape is stored in DB to a UTC ISO string.
-    1. Timezone-aware datetime  -> convert to UTC, serialise
-    2. Naive datetime (legacy)  -> attach UTC tzinfo, serialise
-    3. Already a string / None  -> pass through as-is
-    """
-    if isinstance(raw, datetime):
-        if raw.tzinfo is None:
-            raw = raw.replace(tzinfo=timezone.utc)
-        return raw.astimezone(timezone.utc).isoformat()
-    return raw
 
 
 @router.get("/patients")
@@ -55,7 +33,7 @@ async def get_patient_meta(
             "priority": meta["manual_priority"],
             "reason": meta.get("manual_priority_reason", ""),
             "set_by": meta.get("manual_priority_by", ""),
-            "set_at": normalise_set_at(meta.get("manual_priority_at")),
+            "set_at": to_utc_iso(meta.get("manual_priority_at")),
         }
 
     return {"patient_id": patient_id, "manual_override": override}
@@ -87,17 +65,7 @@ async def clear_override(
     current_user: UserResponse = Depends(require_role(["doctor"])),
 ):
     repo = request.app.state.patient_repo
-    await repo.meta_col.update_one(
-        {"patient_id": patient_id},
-        {
-            "$unset": {
-                "manual_priority": "",
-                "manual_priority_reason": "",
-                "manual_priority_by": "",
-                "manual_priority_at": "",
-            }
-        },
-    )
+    await repo.clear_priority_override(patient_id)
     return {"message": "Override cleared"}
 
 
