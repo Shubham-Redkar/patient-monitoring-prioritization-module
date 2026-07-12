@@ -1,8 +1,7 @@
+import certifi
+from core.config import get_settings
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import ASCENDING, DESCENDING
-from core.config import get_settings
-import certifi
-
 
 _client: AsyncIOMotorClient | None = None
 
@@ -10,11 +9,11 @@ _client: AsyncIOMotorClient | None = None
 def get_client() -> AsyncIOMotorClient:
     global _client
     if _client is None:
-        _client = AsyncIOMotorClient(
-            get_settings().mongo_uri,
-            tls=True,
-            tlsCAFile=certifi.where(),
-        )
+        uri = get_settings().mongo_uri
+        options = {"serverSelectionTimeoutMS": 2000}
+        if uri.startswith("mongodb+srv://"):
+            options.update(tls=True, tlsCAFile=certifi.where())
+        _client = AsyncIOMotorClient(uri, **options)
     return _client
 
 
@@ -45,6 +44,15 @@ async def init_indexes():
         [("username", ASCENDING)],
         unique=True,
         name="users_username_unique",
+    )
+    await db.users.create_index(
+        [("email", ASCENDING)], unique=True, sparse=True, name="users_email_unique"
+    )
+    await db.password_reset_tokens.create_index(
+        [("expires_at", ASCENDING)], expireAfterSeconds=0, name="reset_token_expiry"
+    )
+    await db.password_reset_tokens.create_index(
+        [("token_hash", ASCENDING)], unique=True, name="reset_token_unique"
     )
 
     print("MongoDB indexes ensured.")

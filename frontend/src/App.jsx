@@ -9,7 +9,11 @@ import Login from "./components/Login";
 import Dashboard from "./pages/Dashboard";
 import PatientDetails from "./components/PatientDetails";
 import DataManagement from "./pages/DataManagement";
+import AccountSecurity from "./pages/AccountSecurity";
+import ForgotPassword from "./pages/ForgotPassword";
+import ResetPassword from "./pages/ResetPassword";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ACCESS } from "./config/clinical";
 
 const Loader = () => (
   <div className="min-h-screen flex items-center justify-center text-sm text-gray-500">
@@ -36,6 +40,13 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/" /> : <Login />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
+
+      <Route
+        path="/account"
+        element={<ProtectedRoute><AccountSecurity /></ProtectedRoute>}
+      />
 
       <Route
         path="/"
@@ -49,7 +60,7 @@ const AppRoutes = () => {
       <Route
         path="/patient/:patientId"
         element={
-          <ProtectedRoute allowedRoles={["admin", "doctor"]}>
+          <ProtectedRoute allowedRoles={ACCESS.PATIENT_DETAILS}>
             <PatientDetails />
           </ProtectedRoute>
         }
@@ -58,7 +69,7 @@ const AppRoutes = () => {
       <Route
         path="/users"
         element={
-          <ProtectedRoute allowedRoles={["admin"]}>
+          <ProtectedRoute allowedRoles={ACCESS.USER_MANAGEMENT}>
             <UserManagement />
           </ProtectedRoute>
         }
@@ -67,7 +78,7 @@ const AppRoutes = () => {
       <Route
         path="/data"
         element={
-          <ProtectedRoute allowedRoles={["admin", "nurse"]}>
+          <ProtectedRoute allowedRoles={ACCESS.DATA_MANAGEMENT}>
             <DataManagement />
           </ProtectedRoute>
         }

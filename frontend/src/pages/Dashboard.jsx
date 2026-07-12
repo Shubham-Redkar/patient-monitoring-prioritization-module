@@ -1,293 +1,97 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle, ChevronRight, Eye, RefreshCw, Users } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { patientApi } from "../api/client";
+import AppShell from "../components/layout/AppShell";
+import PriorityBadge from "../components/common/PriorityBadge";
+import { DASHBOARD_CONCURRENCY, HISTORY_HOURS } from "../config/app";
+import { PRIORITIES, PRIORITY_THEME, ROLES } from "../config/clinical";
 import { useAuth } from "../context/AuthContext";
-import {
-  LayoutDashboard,
-  Database,
-  Users,
-  LogOut,
-  Eye,
-  AlertTriangle,
-  CheckCircle,
-  RefreshCw,
-} from "lucide-react";
 
-const BASE = "http://localhost:8000/api/v1";
+const PRIORITY_ORDER = Object.fromEntries(PRIORITIES.map((priority, index) => [priority, index]));
 
-const PRIORITY_STYLE = {
-  Critical: {
-    topBar: "border-t-red-600",
-    badge: "bg-red-100 text-red-800",
-    border: "border-red-200",
-  },
-  High: {
-    topBar: "border-t-orange-500",
-    badge: "bg-orange-100 text-orange-800",
-    border: "border-orange-200",
-  },
-  Medium: {
-    topBar: "border-t-yellow-500",
-    badge: "bg-yellow-100 text-yellow-800",
-    border: "border-yellow-200",
-  },
-  Normal: {
-    topBar: "border-t-green-600",
-    badge: "bg-green-100 text-green-800",
-    border: "border-green-200",
-  },
-  Loading: {
-    topBar: "border-t-slate-400",
-    badge: "bg-slate-100 text-slate-500",
-    border: "border-slate-200",
-  },
-};
-
-async function fetchWithConcurrency(ids, fetchOne, concurrency = 3) {
-  const queue = [...ids];
+async function runInPool(items, task, size) {
+  const queue = [...items];
   const worker = async () => {
-    while (queue.length > 0) {
-      const id = queue.shift();
-      if (id == null) break;
-      await fetchOne(id);
-    }
+    while (queue.length) await task(queue.shift());
   };
-  await Promise.all(Array.from({ length: concurrency }, worker));
+  await Promise.all(Array.from({ length: Math.min(size, items.length) }, worker));
+}
+
+function AlertState({ patient }) {
+  if (patient.priority === "Loading") return <span className="text-slate-400">Assessing…</span>;
+  if (!patient.alert) return <span className="text-slate-500">No active alert</span>;
+  if (patient.acknowledged) return <span className="inline-flex items-center gap-1.5 font-medium text-emerald-700"><CheckCircle className="h-4 w-4" />Acknowledged</span>;
+  return <span className="inline-flex items-center gap-1.5 font-semibold text-red-700"><AlertTriangle className="h-4 w-4" />{patient.alertLevel === "CRITICAL" ? "Immediate review" : "Review required"}</span>;
 }
 
 export default function Dashboard() {
-  const { user, token, logout } = useAuth();
+  const { user, token } = useAuth();
   const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [updatedAt, setUpdatedAt] = useState(null);
 
-  const initialLoad = useCallback(async () => {
-    const authHeaders = { Authorization: `Bearer ${token}` };
+  const loadPatients = useCallback(async () => {
     setLoading(true);
+    setError("");
     try {
-      const res = await fetch(`${BASE}/patients`, { headers: authHeaders });
-      const data = await res.json();
-      const ids = data.patient_ids || [];
-      setPatients(ids.map((id) => ({ id, priority: "Loading", alert: false })));
-      setLoading(false);
-
-      await fetchWithConcurrency(ids, async (id) => {
+      const { patient_ids: ids = [] } = await patientApi.list(token);
+      setPatients(ids.map((id) => ({ id, priority: "Loading" })));
+      await runInPool(ids, async (id) => {
         try {
-          const r = await fetch(`${BASE}/patients/${id}/predict?hour=72`, {
-            headers: authHeaders,
-          });
-          if (!r.ok) return;
-          const d = await r.json();
-          setPatients((prev) =>
-            prev.map((p) =>
-              p.id === id
-                ? {
-                    id,
-                    priority: d.priority_level,
-                    alert: d.alert?.alert && !d.alert?.acknowledged,
-                    alertLevel: d.alert?.level,
-                    acknowledged: d.alert?.alert && d.alert?.acknowledged,
-                  }
-                : p,
-            ),
-          );
-        } catch {
-          /* ignore individual failures */
-        }
-      });
-    } catch {
+          const result = await patientApi.prediction(token, id, HISTORY_HOURS);
+          setPatients((current) => current.map((patient) => patient.id === id ? {
+            id,
+            priority: result.priority_level,
+            alert: result.alert?.alert,
+            acknowledged: result.alert?.acknowledged,
+            alertLevel: result.alert?.level,
+          } : patient));
+        } catch { /* retain the patient row when an individual assessment fails */ }
+      }, DASHBOARD_CONCURRENCY);
+      setUpdatedAt(new Date());
+    } catch (requestError) {
+      setError(requestError.message);
+    } finally {
       setLoading(false);
     }
   }, [token]);
 
-  useEffect(() => {
-    initialLoad();
-  }, [initialLoad]);
+  useEffect(() => { loadPatients(); }, [loadPatients]);
 
-  const counts = {
-    Critical: patients.filter((p) => p.priority === "Critical").length,
-    High: patients.filter((p) => p.priority === "High").length,
-    Medium: patients.filter((p) => p.priority === "Medium").length,
-    Normal: patients.filter((p) => p.priority === "Normal").length,
-  };
+  const counts = useMemo(() => Object.fromEntries(
+    PRIORITIES.map((priority) => [priority, patients.filter((patient) => patient.priority === priority).length]),
+  ), [patients]);
+  const sortedPatients = useMemo(() => [...patients].sort((a, b) =>
+    (PRIORITY_ORDER[a.priority] ?? 99) - (PRIORITY_ORDER[b.priority] ?? 99) || Number(a.id) - Number(b.id),
+  ), [patients]);
+  const readOnly = user?.role === ROLES.NURSE;
 
-  const isNurse = user?.role === "nurse";
+  return <AppShell title="Patient Census" subtitle="Prioritized inpatient worklist for sepsis surveillance and clinical review">
+    <section aria-label="Census summary" className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-5">
+      {PRIORITIES.map((priority) => {
+        const theme = PRIORITY_THEME[priority];
+        return <div key={priority} className={`rounded-lg border bg-white px-4 py-3 ${theme.border}`}><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{priority}</p><p className="mt-1 text-2xl font-bold tabular-nums">{counts[priority] || 0}</p></div><span className={`h-3 w-3 rounded-full ${theme.bar}`} /></div></div>;
+      })}
+      <div className="rounded-lg border border-slate-700 bg-slate-900 px-4 py-3 text-white"><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Total census</p><p className="mt-1 text-2xl font-bold tabular-nums">{patients.length}</p></div><Users className="h-5 w-5 text-cyan-300" /></div></div>
+    </section>
 
-  return (
-    <div
-      className="min-h-screen bg-slate-50"
-      style={{ fontFamily: "system-ui, sans-serif" }}
-    >
-      <div className="bg-white border-b border-slate-200 px-6 py-4">
-        <div className="flex items-center justify-between max-w-7xl mx-auto">
-          <div className="flex items-center gap-2">
-            <LayoutDashboard className="w-5 h-5 text-slate-700" />
-            <div>
-              <h1 className="text-xl font-bold text-slate-900">
-                Clinical Decision Support
-              </h1>
-              <p className="text-sm text-slate-500 mt-0.5">
-                Overview Dashboard
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-base text-slate-700 font-medium">
-              {user?.full_name || user?.username}
-              <span className="ml-2 text-sm text-slate-400 capitalize">
-                ({user?.role})
-              </span>
-            </span>
-            {isNurse && (
-              <span className="flex items-center gap-1 px-3 py-1 text-xs font-semibold rounded-full bg-rose-50 border border-rose-200 text-rose-700">
-                <Eye className="w-3 h-3" />
-                Read-only
-              </span>
-            )}
-            {isNurse && (
-              <button
-                className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
-                onClick={() => navigate("/data")}
-              >
-                <Database className="w-4 h-4" />
-                Data Management
-              </button>
-            )}
-            {user?.role === "admin" && (
-              <>
-                <button
-                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
-                  onClick={() => navigate("/data")}
-                >
-                  <Database className="w-4 h-4" />
-                  Data Management
-                </button>
-                <button
-                  className="flex items-center gap-1.5 px-4 py-2 border border-slate-300 rounded-lg bg-white text-base text-slate-700 hover:bg-slate-50"
-                  onClick={() => navigate("/users")}
-                >
-                  <Users className="w-4 h-4" />
-                  User Management
-                </button>
-              </>
-            )}
-            <button
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 text-white rounded-lg text-base hover:bg-slate-700"
-              onClick={logout}
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
-          </div>
+    <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <header className="flex flex-col gap-3 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 className="font-semibold text-slate-900">Clinical review worklist</h2><p className="mt-1 text-sm text-slate-500">Ordered by clinical priority, then patient identifier</p></div>
+        <div className="flex items-center justify-between gap-4 sm:justify-end"><span className="text-xs text-slate-500">{updatedAt ? `Updated ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "Not yet updated"}</span><button onClick={loadPatients} disabled={loading} className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />Refresh</button></div>
+      </header>
+      {error && <p className="m-5 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+      {!loading && patients.length === 0 ? <div className="p-12 text-center"><Users className="mx-auto h-8 w-8 text-slate-300" /><p className="mt-3 text-sm font-medium text-slate-700">No patients available</p><p className="mt-1 text-sm text-slate-500">Import monitoring data to populate the clinical worklist.</p></div> : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] border-collapse text-left">
+            <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-500"><tr><th className="px-5 py-3">Patient</th><th className="px-5 py-3">Priority</th><th className="px-5 py-3">Alert status</th><th className="px-5 py-3">Access</th><th className="w-16 px-5 py-3"><span className="sr-only">Open</span></th></tr></thead>
+            <tbody className="divide-y divide-slate-100">{sortedPatients.map((patient) => <tr key={patient.id} className="group hover:bg-slate-50"><td className="px-5 py-4"><p className="font-mono text-base font-bold text-slate-900">{patient.id}</p><p className="mt-0.5 text-xs text-slate-500">Inpatient monitoring record</p></td><td className="px-5 py-4"><PriorityBadge level={patient.priority} /></td><td className="px-5 py-4 text-sm"><AlertState patient={patient} /></td><td className="px-5 py-4 text-sm text-slate-600">{readOnly ? <span className="inline-flex items-center gap-1.5"><Eye className="h-4 w-4" />Overview only</span> : "Full clinical review"}</td><td className="px-5 py-4 text-right">{!readOnly && <button onClick={() => navigate(`/patient/${patient.id}`)} aria-label={`Open patient ${patient.id}`} className="rounded-md border border-slate-300 p-2 text-slate-600 group-hover:border-slate-400 group-hover:bg-white"><ChevronRight className="h-4 w-4" /></button>}</td></tr>)}</tbody>
+          </table>
         </div>
-      </div>
-
-      <div className="p-6 max-w-7xl mx-auto">
-        {!loading && patients.length > 0 && (
-          <div className="grid grid-cols-4 gap-4 mb-6">
-            {[
-              {
-                key: "Critical",
-                dot: "bg-red-600",
-                bg: "bg-red-50",
-                border: "border-red-200",
-                text: "text-red-800",
-                sub: "text-red-600",
-              },
-              {
-                key: "High",
-                dot: "bg-orange-500",
-                bg: "bg-orange-50",
-                border: "border-orange-200",
-                text: "text-orange-800",
-                sub: "text-orange-600",
-              },
-              {
-                key: "Medium",
-                dot: "bg-yellow-500",
-                bg: "bg-yellow-50",
-                border: "border-yellow-200",
-                text: "text-yellow-800",
-                sub: "text-yellow-600",
-              },
-              {
-                key: "Normal",
-                dot: "bg-green-600",
-                bg: "bg-green-50",
-                border: "border-green-200",
-                text: "text-green-800",
-                sub: "text-green-600",
-              },
-            ].map(({ key, dot, bg, border, text, sub }) => (
-              <div
-                key={key}
-                className={`${bg} border ${border} rounded-xl px-5 py-4 flex items-center gap-3`}
-              >
-                <span className={`w-3 h-3 rounded-full ${dot}`} />
-                <div>
-                  <p className={`text-2xl font-bold ${text}`}>{counts[key]}</p>
-                  <p className={`text-sm ${sub}`}>{key}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {loading ? (
-          <div className="flex items-center gap-2 text-base text-slate-500">
-            <RefreshCw className="w-4 h-4 animate-spin" />
-            Loading patients…
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-5">
-            {patients.map((p) => {
-              const style = PRIORITY_STYLE[p.priority] || PRIORITY_STYLE.Normal;
-              return (
-                <div
-                  key={p.id}
-                  onClick={() => !isNurse && navigate(`/patient/${p.id}`)}
-                  className={`bg-white rounded-xl p-5 border-t-4 border ${style.topBar} ${style.border} transition-all duration-200 ${
-                    p.priority === "Loading" ? "animate-pulse" : ""
-                  } ${!isNurse ? "cursor-pointer hover:-translate-y-1 hover:shadow-md" : "cursor-default"}`}
-                >
-                  <p className="text-xs text-slate-400 uppercase tracking-wider mb-1">
-                    Patient ID
-                  </p>
-                  <p className="text-2xl font-bold font-mono text-slate-900 mb-3">
-                    {p.id}
-                  </p>
-                  <span
-                    className={`inline-block text-sm font-semibold px-3 py-1 rounded-full ${style.badge}`}
-                  >
-                    {p.priority === "Loading"
-                      ? "Loading…"
-                      : `${p.priority} Priority`}
-                  </span>
-                  {p.alert && (
-                    <p
-                      className={`flex items-center gap-1 text-sm font-semibold mt-3 ${
-                        p.alertLevel === "CRITICAL"
-                          ? "text-red-700"
-                          : "text-orange-700"
-                      }`}
-                    >
-                      <AlertTriangle className="w-4 h-4" />
-                      {p.alertLevel === "CRITICAL"
-                        ? "CRITICAL ALERT"
-                        : "HIGH RISK"}
-                    </p>
-                  )}
-                  {p.acknowledged && (
-                    <p className="flex items-center gap-1 text-sm font-semibold mt-3 text-green-700">
-                      <CheckCircle className="w-4 h-4" />
-                      Acknowledged
-                    </p>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+      )}
+    </section>
+  </AppShell>;
 }

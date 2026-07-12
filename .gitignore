@@ -3,6 +3,10 @@ __pycache__/
 *.pyo
 *.pyd
 .Python
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
 *.egg
 *.egg-info/
 dist/
@@ -21,19 +25,20 @@ lib64/
 venv/
 env/
 ENV/
-.env/
 myenv/
 
 .env
 .env.*
 !.env.example
 
-models/*.pkl
-models/*.joblib
-models/*.h5
-models/*.pt
-models/*.pth
-models/*.onnx
+# Trained artifacts in backend/app/models are required by the API and are
+# intentionally versioned. Ignore ad-hoc experiment output elsewhere.
+notebook/*.pkl
+notebook/*.joblib
+notebook/*.h5
+notebook/*.pt
+notebook/*.pth
+notebook/*.onnx
 
 .ipynb_checkpoints/
 *.ipynb
@@ -55,4 +60,10 @@ logs/
 
 .pytest_cache/
 .coverage
+.coverage.*
 htmlcov/
+
+# Container overrides and local volumes
+compose.override.yaml
+docker-compose.override.yml
+mongodb_data/

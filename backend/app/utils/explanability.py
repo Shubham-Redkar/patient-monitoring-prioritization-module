@@ -1,37 +1,13 @@
+import logging
+
 import shap
-import pandas as pd
-from utils.preprocessing import scale_features
+import numpy as np
+
 from utils.constants import FEATURE_META
-
-_lab_explainer = None
-_vital_explainer = None
+from utils.preprocessing import scale_features
 
 
-def init_explainers(lab_service, vital_service):
-    """
-    Call this once at startup (in lifespan) to build and cache SHAP explainers.
-    Building explainers is expensive — caching saves ~200-500ms per request.
-    """
-    global _lab_explainer, _vital_explainer
-    try:
-        _lab_explainer = shap.LinearExplainer(
-            lab_service.model,
-            shap.maskers.Independent(
-                lab_service.scaler.transform(
-                    pd.DataFrame(
-                        [[0] * len(lab_service.features)],
-                        columns=lab_service.features,
-                    )
-                )
-            ),
-        )
-    except Exception:
-        _lab_explainer = None
-
-    try:
-        _vital_explainer = shap.TreeExplainer(vital_service.model)
-    except Exception:
-        _vital_explainer = None
+logger = logging.getLogger(__name__)
 
 
 def _status(feature, value):
@@ -45,74 +21,126 @@ def _status(feature, value):
     return "NORMAL"
 
 
-def _format_signal_for_llm(feature, value):
-    """Clinician-readable signal for the LLM prompt — no ML jargon."""
+def _clinical_signal(feature, value):
+    if "_diff_4h" in feature:
+        name = feature.replace("_diff_4h", "").replace("_", " ")
+        unit = FEATURE_META.get(feature.replace("_diff_4h", ""), {}).get("unit", "")
+        return f"{name} 4-hour change: {round(value, 2)} {unit}"
+    if "_roll_std_4h" in feature:
+        name = feature.replace("_roll_std_4h", "").replace("_", " ")
+        unit = FEATURE_META.get(feature.replace("_roll_std_4h", ""), {}).get("unit", "")
+        return f"{name} 4-hour variability: {round(value, 2)} {unit}"
     meta = FEATURE_META.get(feature, {})
-    status = _status(feature, value)
-    display_name = feature.replace("_", " ")
     return (
-        f"{display_name}: {round(value, 2)} {meta.get('unit', '')} "
-        f"({status}, normal range: {meta.get('normal', 'unknown')})"
+        f"{feature.replace('_', ' ')}: {round(value, 2)} {meta.get('unit', '')} "
+        f"({_status(feature, value)}, normal range: {meta.get('normal', 'unknown')})"
     )
 
 
-def _format_signal(feature, value, shap_val):
-    """Signal string for the frontend UI — includes direction arrow and magnitude."""
+def _ui_signal(feature, value, contribution):
+    if abs(contribution) < 1e-9:
+        risk_effect = "neutral"
+    else:
+        risk_effect = "raises risk" if contribution > 0 else "lowers risk"
+    if "_diff_4h" in feature or "_roll_std_4h" in feature:
+        return f"{_clinical_signal(feature, value)} ({risk_effect}: {round(abs(contribution), 3)})"
     meta = FEATURE_META.get(feature, {})
-    direction = "↑" if shap_val > 0 else "↓"
     return (
         f"{feature}: {round(value, 2)} {meta.get('unit', '')} "
         f"[{_status(feature, value)}, normal: {meta.get('normal', '?')}] "
-        f"({direction}{round(abs(shap_val), 3)})"
+        f"({risk_effect}: {round(abs(contribution), 3)})"
     )
 
 
-def _get_signals(explainer, scaler, features, df, row):
-    X = scale_features(df.iloc[[-1]], scaler, features)  # now a numpy array
-    shap_vals = explainer.shap_values(X)[0]
-    ranked = sorted(zip(features, shap_vals), key=lambda x: abs(x[1]), reverse=True)[:3]
-    ui_signals = [_format_signal(f, float(row[f]), v) for f, v in ranked if f in row]
-    llm_signals = [
-        _format_signal_for_llm(f, float(row[f])) for f, v in ranked if f in row
-    ]
-    return ui_signals, llm_signals
+class SignalExplainer:
+    """Owns SHAP explainers and converts their output to displayable signals."""
 
+    def __init__(self, lab_service, vital_service):
+        self.lab_service = lab_service
+        self.vital_service = vital_service
+        self.lab_explainer = None
+        self.vital_explainer = None
+        self._initialized = False
 
-def extract_signals(vital_df, lab_df, priority, lab_service=None, vital_service=None):
+    def _initialize(self):
+        """Build expensive SHAP objects only when signals are first requested."""
+        if self._initialized:
+            return
+        self.lab_explainer = self._create_lab_explainer()
+        self.vital_explainer = self._create_vital_explainer()
+        self._initialized = True
 
-    lab_signals = []
-    vital_signals = []
-    lab_llm_signals = []
-    vital_llm_signals = []
-
-    try:
-        if lab_df is not None and not lab_df.empty and lab_service and _lab_explainer:
-            lab_signals, lab_llm_signals = _get_signals(
-                _lab_explainer,
-                lab_service.scaler,
-                lab_service.features,
-                lab_df,
-                lab_df.iloc[-1],
+    def _create_lab_explainer(self):
+        service = self.lab_service
+        try:
+            # Predictions operate in standardized space. Zero is therefore the
+            # training-feature mean and is a meaningful neutral baseline.
+            masker = shap.maskers.Independent(
+                np.zeros((1, len(service.features)), dtype=float)
             )
-    except Exception:
-        pass
+            return shap.LinearExplainer(service.model, masker)
+        except Exception:
+            logger.exception("Lab SHAP explainer could not be initialized")
+            return None
 
-    try:
-        if vital_service and _vital_explainer:
-            vital_signals, vital_llm_signals = _get_signals(
-                _vital_explainer,
-                vital_service.scaler,
-                vital_service.features,
-                vital_df,
-                vital_df.iloc[-1],
+    def _create_vital_explainer(self):
+        try:
+            return shap.TreeExplainer(self.vital_service.model)
+        except Exception:
+            logger.exception("Vital SHAP explainer could not be initialized")
+            return None
+
+    @staticmethod
+    def _ranked_signals(explainer, service, frame, invert_direction=False):
+        scaled = scale_features(
+            frame.iloc[[-1]], service.scaler, service.features
+        )
+        contributions = explainer.shap_values(scaled)[0]
+        # Isolation Forest TreeExplainer values describe normality/path length:
+        # larger values are more normal. Invert them to express anomaly risk.
+        if invert_direction:
+            contributions = -np.asarray(contributions)
+        ranked = sorted(
+            zip(service.features, contributions),
+            key=lambda item: abs(item[1]),
+            reverse=True,
+        )[:3]
+        row = frame.iloc[-1]
+        ranked = [(name, value) for name, value in ranked if name in row]
+        return (
+            [_ui_signal(name, float(row[name]), value) for name, value in ranked],
+            [_clinical_signal(name, float(row[name])) for name, _ in ranked],
+        )
+
+    def _safe_signals(
+        self, explainer, service, frame, label, invert_direction=False
+    ):
+        if explainer is None or frame is None or frame.empty:
+            return [], []
+        try:
+            return self._ranked_signals(
+                explainer, service, frame, invert_direction
             )
-    except Exception:
-        pass
+        except Exception:
+            logger.exception("%s SHAP signal extraction failed", label)
+            return [], []
 
-    return {
-        "lab": lab_signals,
-        "vitals": vital_signals,
-        "lab_llm": lab_llm_signals,
-        "vitals_llm": vital_llm_signals,
-        "priority": priority,
-    }
+    def extract(self, vital_df, lab_df, priority):
+        self._initialize()
+        lab, lab_llm = self._safe_signals(
+            self.lab_explainer, self.lab_service, lab_df, "Lab"
+        )
+        vitals, vitals_llm = self._safe_signals(
+            self.vital_explainer,
+            self.vital_service,
+            vital_df,
+            "Vital",
+            invert_direction=True,
+        )
+        return {
+            "lab": lab,
+            "vitals": vitals,
+            "lab_llm": lab_llm,
+            "vitals_llm": vitals_llm,
+            "priority": priority,
+        }
